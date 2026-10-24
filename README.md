@@ -143,17 +143,17 @@ npm run doctor     # 体检：为什么机器人不理我
 
 DLL 负责注入到 `Weixin.exe`，在进程内起一个本地 HTTP 服务（默认 `30001`）。它靠进程内的固定偏移工作，**微信一变它就失效**；微信平均 1~2 周发一个版本。
 
-目前公开可用的方案（`src/bridge/profiles.js` 维护这张表）：
+目前公开可用的方案（`src/bridge/profiles.js` 维护这张表），经 GitHub 复核：
 
 | 微信版本 | DLL | 发送 | 接收 | 许可 |
 |---|---|---|---|---|
-| 4.1.15.56 / 4.1.15.50 | miloira/wxhook（pywechat） | 是 | 是 | 闭源，需加群获取 |
-| 4.1.10.27 | aixed/WeChat-Hook（main） | 是 | 否 | 源码公开，接收 hook 已被移除 |
+| 4.1.15.56 / 4.1.15.50 | miloira/wxhook | 是 | 是 | MIT（开源仓库） |
+| 4.1.10.27 | aixed/WeChat-Hook（main） | 是 | 否 | 源码公开（未声明许可证） |
 | 4.1.8.67 | lyx102/WeChatHook | 是 | 是 | MIT |
-| 3.9.10.16 | aixed/WeChat-Hook（old_version） | 是 | 是 | 源码公开 |
+| 3.9.10.16 | aixed/WeChat-Hook（old_version） | 是 | 是 | 源码公开（未声明许可证） |
 | 3.9.5.81 | miloira/wxhook（开源版） | 是 | 是 | MIT |
 
-**闭源方案请自行获取，本项目不分发任何第三方 DLL。** `node tools/check-env.js` 会直接给出你这台机器的结论。
+`miloira/wxhook` 开源仓库现覆盖 3.9.x 至 4.1.15.x 的大量版本（官方描述含 4.1.15.56 等）；本项目仅维护代表性版本档案，新版本可经 `node tools/check-env.js` 探测。**所有方案均为第三方维护，本项目不分发任何 DLL。**
 
 ### 2. 锁住微信版本（这一步不能省）
 
