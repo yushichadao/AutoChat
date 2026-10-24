@@ -71,9 +71,19 @@ export class HookClient {
     }
   }
 
+  /**
+   * 读本机微信资料（昵称 + wxid）。
+   * 不同 DLL 返回的字段名不一致：wxid / username / account / user_name / wxid_ 都接受，
+   * 取不到就返回 null，由上层走本地库兜底或提示手工配置。
+   */
   async selfProfile() {
     const r = await this.request('POST', this.ep.selfProfile, {});
-    return r.json;
+    const j = r.json;
+    if (!j || typeof j !== 'object') return null;
+    const wxid = String(j.wxid ?? j.username ?? j.account ?? j.user_name ?? j.wxid_ ?? '').trim();
+    if (!wxid) return null;
+    const nickname = String(j.nickname ?? j.name ?? j.nick ?? '').trim();
+    return { wxid, nickname, raw: j };
   }
 
   /**
@@ -83,16 +93,31 @@ export class HookClient {
    * 这时可以从本地 Message 库里把 StrAccount 读出来。
    * 拿不到就返回空串，由上层提示用户手工配置 WX_SELF_ID。
    */
+  /**
+   * 兜底查本机账号 wxid。
+   * 不同微信版本/库里本机 wxid 的位置不一样，逐个试：
+   *   1) Message 库 StrAccount 列（旧版常见）
+   *   2) MicroMsg.db 的 userinfo 表（id=1 的 value，最通用）
+   *   3) MicroMsg.db 的 userinfo 表 username 列（部分版本）
+   * 字段名同样兼容 wxid / StrAccount / username / account / value。
+   * 拿不到就返回空串，由上层提示用户手工配置 WX_SELF_ID。
+   */
   async selfAccount() {
-    const sql = 'SELECT StrAccount AS wxid FROM Message LIMIT 1';
-    for (const db of ['Message', 'MicroMsg.db']) {
+    const tries = [
+      { db: 'Message', sql: 'SELECT StrAccount AS wxid FROM Message LIMIT 1' },
+      { db: 'MicroMsg.db', sql: 'SELECT value AS wxid FROM userinfo WHERE id=1' },
+      { db: 'MicroMsg.db', sql: 'SELECT username AS wxid FROM userinfo WHERE id=1' },
+    ];
+    const pick = (row) =>
+      String(row?.wxid || row?.StrAccount || row?.username || row?.account || row?.value || '').trim();
+    for (const { db, sql } of tries) {
       try {
         const r = await this.request('POST', this.ep.queryDb, { optDbName: db, SQL: sql }, 8000);
-        const rows = Array.isArray(r?.data) ? r.data : Array.isArray(r) ? r : [];
-        const wxid = String(rows?.[0]?.wxid || rows?.[0]?.StrAccount || '').trim();
+        const rows = Array.isArray(r?.json?.data) ? r.json.data : Array.isArray(r?.json) ? r.json : [];
+        const wxid = pick(rows?.[0]);
         if (wxid) return wxid;
       } catch {
-        /* 这个库打不开就换下一个 */
+        /* 这个库/SQL 打不开就换下一个 */
       }
     }
     return '';

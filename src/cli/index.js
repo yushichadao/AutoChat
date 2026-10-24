@@ -10,6 +10,8 @@ import { listModels, testChat, discoverLocal, explainError } from '../ai/probe.j
 import { groupedProviders } from '../ai/providers.js';
 import { install, uninstall, checkEnvironment } from '../setup/installer.js';
 import { isRunning, killProcess } from '../setup/win.js';
+import { HookClient } from '../bridge/hook-client.js';
+import { createLogger } from '../logger.js';
 
 /**
  * 命令行入口。
@@ -568,6 +570,53 @@ async function cmdGui() {
   await startGui({ rootDir: ROOT, port: Number(opt('port', '8788')), window: !flag('no-window') });
 }
 
+/** 探测本机微信 wxid：检查自动获取（hook / 本地库）是否正常，省得翻启动日志。 */
+async function cmdSelf() {
+  const cfg = loadConfig({ rootDir: ROOT });
+  const hook = new HookClient({
+    host: cfg.wechat.host,
+    port: cfg.wechat.port,
+    endpoints: cfg.wechat.endpoints,
+    logger: createLogger('hook-ipc', cfg.logLevel),
+    dbName: cfg.wechat.pollDb,
+  });
+
+  section('本机微信 wxid 探测（用于识别「自己发出的消息」）');
+  line(cfg.wechat.selfId ? 'ok' : 'warn', 'WX_SELF_ID 配置', cfg.wechat.selfId || '（未配置，将自动获取）');
+
+  let fromProfile = '';
+  try {
+    const prof = await hook.selfProfile();
+    fromProfile = prof?.wxid || '';
+    if (fromProfile) {
+      line('ok', 'hook /GetSelfProfile', `${prof.nickname ? prof.nickname + ' ' : ''}(${fromProfile})`);
+    } else {
+      line('warn', 'hook /GetSelfProfile', '未返回 wxid（DLL 不支持 / 未登录 / 字段名不匹配）');
+    }
+  } catch (e) {
+    line('warn', 'hook /GetSelfProfile', e.message);
+  }
+
+  let fromDb = '';
+  if (!fromProfile) {
+    try {
+      fromDb = await hook.selfAccount();
+      if (fromDb) line('ok', '本地库兜底', fromDb);
+      else line('warn', '本地库兜底', '未查到（表/列名不匹配或库不可读）');
+    } catch (e) {
+      line('warn', '本地库兜底', e.message);
+    }
+  }
+
+  const final = cfg.wechat.selfId || fromProfile || fromDb;
+  console.log('');
+  line(
+    final ? 'ok' : 'warn',
+    '最终用于「排除自己消息」的 wxid',
+    final || '（拿不到，将禁用基于 id 的过滤，可能自问自答）'
+  );
+}
+
 function printHelp() {
   console.log(`
 ${C.bold}AutoChat${C.reset} \u2014\u2014 \u5fae\u4fe1\u4fa7\u7684\u672c\u5730 AI \u52a9\u624b
@@ -583,6 +632,7 @@ ${C.bold}\u8fd0\u884c${C.reset}
   autochat status               \u72b6\u6001\u603b\u89c8\uff08\u670d\u52a1 / \u603b\u95f8 / \u914d\u7f6e / \u4e0a\u4e0b\u6587\uff09
   autochat doctor               \u73af\u5883\u4f53\u68c0\uff1a\u4e3a\u4ec0\u4e48\u673a\u5668\u4eba\u4e0d\u7406\u6211
   autochat gui [--no-window]   图形化配置器（默认自动打开单例独立浏览器窗口；--no-window 关闭自动打开）
+  autochat self                探测本机微信 wxid（检查自动获取是否正常）
 
 ${C.bold}\u603b\u95f8${C.reset}\uff08\u81ea\u52a8\u5316\u6700\u6015\u505c\u4e0d\u4e0b\u6765\uff0c\u6240\u4ee5\u653e\u6700\u524d\u9762\uff09
   autochat pause [\u539f\u56e0]      \u7acb\u523b\u505c\u6b62\u81ea\u52a8\u56de\u590d\uff08\u4ecd\u63a5\u6536\u3001\u4ecd\u8bb0\u65e5\u5fd7\uff09
@@ -614,6 +664,7 @@ const COMMANDS = {
   install: cmdInstall,
   uninstall: cmdUninstall,
   gui: cmdGui,
+  self: cmdSelf,
   help: printHelp,
 };
 
