@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoChat — 微信侧本地 AI 助手</title>
+<meta name="description" content="AutoChat：把本机登录的微信账号接到 OpenAI 兼容模型上的本地 AI 助手。零运行时依赖、纯本地、可一键暂停。">
+<style>
+  :root{
+    --bg:#0e0f13; --bg-soft:#16181f; --panel:#181a21; --line:rgba(255,255,255,.09);
+    --accent:#5ad1c4; --accent-weak:rgba(90,209,196,.12);
+    --text:#eef0f3; --dim:#9aa0ab; --warn:#f8b860; --danger:#f87171;
+    --radius:14px; --maxw:1080px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased;line-height:1.65;overflow-x:hidden}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding-inline:clamp(20px,5vw,40px)}
+  .btn{display:inline-block;padding:11px 20px;border-radius:10px;font-weight:600;font-size:15px;transition:.18s;border:1px solid transparent}
+  .btn-primary{background:var(--accent);color:#06201d}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-ghost{border-color:var(--line);color:var(--text)}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+  code{font-family:"SF Mono",Consolas,Menlo,monospace;background:var(--bg-soft);padding:2px 7px;border-radius:6px;font-size:.9em;color:var(--accent)}
+  pre{background:var(--bg-soft);border:1px solid var(--line);border-radius:12px;padding:18px 20px;overflow:auto;font-size:13.5px;line-height:1.7}
+  pre code{background:none;padding:0;color:var(--text)}
+  nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);background:rgba(14,15,19,.72);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .brand{font-weight:800;letter-spacing:.02em;font-size:18px}
+  .brand span{color:var(--accent)}
+  .navlinks{display:flex;gap:22px;font-size:14.5px;color:var(--dim)}
+  .navlinks a:hover{color:var(--text)}
+  section{padding-block:clamp(64px,10vh,110px)}
+  .eyebrow{font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{font-size:clamp(34px,6vw,58px);line-height:1.1;letter-spacing:-.01em;margin:14px 0 18px}
+  h2{font-size:clamp(24px,3.4vw,34px);margin-bottom:14px;letter-spacing:-.01em}
+  h3{font-size:17px;margin-bottom:6px}
+  .lede{font-size:clamp(16px,2vw,19px);color:var(--dim);max-width:680px}
+  .hero{padding-top:clamp(54px,9vh,96px)}
+  .hero .cta{display:flex;gap:14px;margin-top:30px;flex-wrap:wrap}
+  .grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .card .ico{font-size:22px;margin-bottom:10px}
+  .card p{color:var(--dim);font-size:14.5px;margin-top:4px}
+  .steps{counter-reset:s;display:grid;gap:16px}
+  .step{display:flex;gap:16px;align-items:flex-start}
+  .step::before{counter-increment:s;content:counter(s);flex:0 0 34px;height:34px;border-radius:50%;background:var(--accent-weak);color:var(--accent);display:grid;place-items:center;font-weight:800}
+  .step div{flex:1}
+  .callout{border:1px solid var(--line);border-left:3px solid var(--warn);background:rgba(248,184,96,.06);border-radius:12px;padding:18px 20px;color:var(--dim);font-size:15px}
+  .callout b{color:var(--text)}
+  .redlines{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .redline{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px 15px;font-size:14px;color:var(--dim)}
+  .redline b{color:var(--text)}
+  footer{border-top:1px solid var(--line);padding-block:40px;color:var(--dim);font-size:13.5px}
+  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:18px}
+  footer a:hover{color:var(--accent)}
+  @media(max-width:560px){.navlinks{display:none}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand">Auto<span>Chat</span></div>
+    <div class="navlinks">
+      <a href="#features">能力</a>
+      <a href="#start">快速开始</a>
+      <a href="#compliance">合规与安全</a>
+      <a href="https://github.com/yushichadao/AutoChat">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">本地 · 零依赖 · 可一键暂停</div>
+    <h1>微信侧的本地 AI 助手</h1>
+    <p class="lede">把本机登录的微信账号接到 OpenAI 兼容模型上。它只做一件事：收到微信消息 → 按策略交给模型 → 把回复发回微信。所有行为发生在你自己的账号里，模型可以跑在本机，也可以接云端。</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/yushichadao/AutoChat">在 GitHub 查看</a>
+      <a class="btn btn-ghost" href="#start">3 步跑起来</a>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <div class="eyebrow">核心能力</div>
+    <h2>它帮你做什么</h2>
+    <div class="grid" style="margin-top:26px">
+      <div class="card"><div class="ico">🤖</div><h3>本地 AI 自动回复</h3><p>接 OpenAI 兼容模型，本地或云端都行。群聊 / 私聊分别施策，支持触发前缀、@ 认可、人设与上下文记忆。</p></div>
+      <div class="card"><div class="ico">🛡️</div><h3>总闸随时暂停</h3><p>一行命令 <code>autochat pause</code> 立刻停掉自动回复（仍接收、仍记录），<code>resume</code> 恢复。<b>自动化最怕停不下来，所以它最好找。</b></p></div>
+      <div class="card"><div class="ico">🧩</div><h3>零运行时依赖</h3><p>纯 Node.js ESM，无构建步骤、无 TypeScript、无框架。克隆即跑，<code>npm test</code> 108 项测试全绿。</p></div>
+      <div class="card"><div class="ico">🖥️</div><h3>图形化配置器</h3><p>不懂命令行也能用：<code>autochat gui</code> 打开网页配置模型、会话、护栏，安装 / 卸载、状态一目了然。</p></div>
+      <div class="card"><div class="ico">🔌</div><h3>本机 hook 注入</h3><p>通过第三方 hook DLL 读写本机微信进程收发消息。DLL 由你自行获取，本项目<b>不分发任何第三方二进制</b>。</p></div>
+      <div class="card"><div class="ico">⚖️</div><h3>内置合规护栏</h3><p>webhook 鉴权、自身消息过滤、限流、并发上限、否定语义拒绝——挡住技术事故，并明确合法使用边界。</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="start" style="background:var(--bg-soft)">
+  <div class="wrap">
+    <div class="eyebrow">快速开始</div>
+    <h2>3 步跑起来</h2>
+    <div class="steps" style="margin-top:26px;max-width:760px">
+      <div class="step"><div>
+        <h3>① 准备：双账号方案</h3>
+        <p class="lede" style="font-size:15px">建议用一个小号 / 备用号接收消息，避免机器人把<b>自己的回复</b>当成别人的提问而自问自答。锁住微信版本，准备 hook DLL（见仓库说明）。</p>
+      </div></div>
+      <div class="step"><div>
+        <h3>② 配置模型</h3>
+        <p style="color:var(--dim)">推荐本机模型（Ollama / LM Studio）以保护隐私；也可接云端 OpenAI 兼容服务。</p>
+        <pre><code>autochat setup        # 向导：选模型、填密钥、试连
+# 或图形界面
+autochat gui</code></pre>
+      </div></div>
+      <div class="step"><div>
+        <h3>③ 启动与体检</h3>
+        <p style="color:var(--dim)">启动服务，用 doctor 按提示把 hook DLL 就位。</p>
+        <pre><code>autochat start        # 前台启动服务
+autochat doctor       # 环境体检：为什么机器人不理我
+autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</code></pre>
+      </div></div>
+    </div>
+    <p class="lede" style="margin-top:22px;font-size:14.5px">完整文档见 <a href="https://github.com/yushichadao/AutoChat#readme" style="color:var(--accent)">README</a>。不需要 DLL 与 API Key 也能 <code>npm run demo</code> 跑通全链路。</p>
+  </div>
+</section>
+
+<section id="compliance">
+  <div class="wrap">
+    <div class="eyebrow">合规与安全</div>
+    <h2>合法使用是底线</h2>
+    <div class="callout" style="margin-top:20px">
+      <b>工具本身不违法，你用它干的事才违法。</b> 它只允许在<b>本人设备、本人账号</b>上使用。冒充他人、向不特定多数人推送投资 / 刷单 / 中奖信息、发送收款码或代付请求、导出他人聊天记录、对他人设备注入读取数据——这些行为在中国法域下可能触及诈骗罪、帮信罪、侵犯公民个人信息罪、非法侵入计算机信息系统罪等。<b>配置、部署、维护的人就是行为人，免责声明不能对抗受害人，也不能免除刑事责任。</b>
+    </div>
+    <h3 style="margin-top:26px">明确禁止（红线）</h3>
+    <div class="redlines" style="margin-top:14px">
+      <div class="redline"><b>不冒充他人</b>身份、头像、名义沟通</div>
+      <div class="redline"><b>不群推</b>投资 / 理财 / 中奖 / 刷单 / 赌博信息</div>
+      <div class="redline"><b>不发送</b>收款码、支付链接、代付请求</div>
+      <div class="redline"><b>不导出 / 售卖</b>他人聊天记录、通讯录</div>
+      <div class="redline"><b>不绕过风控</b>做批量营销、群发</div>
+      <div class="redline"><b>不向他人设备 / 账号</b>注入或读取数据</div>
+    </div>
+    <p class="lede" style="margin-top:22px;font-size:15px">本项目内置护栏、把规则写清楚、把举报通道开出来，但<b>挡不住人的恶意</b>。完整法律梳理、刑责科普、数据流向、维护者义务见 <a href="LEGAL.md" style="color:var(--accent)">LEGAL.md</a>；漏洞报告走 <a href="SECURITY.md" style="color:var(--accent)">SECURITY.md</a> 私密渠道。</p>
+  </div>
+</section>
+
+<section style="background:var(--bg-soft)">
+  <div class="wrap">
+    <div class="eyebrow">平台与风险</div>
+    <h2>使用前须知</h2>
+    <div class="grid" style="margin-top:22px">
+      <div class="card"><h3>🪟 仅支持 Windows</h3><p>hook DLL 注入依赖 Windows 微信客户端，macOS / Linux 无法运行核心收发能力。</p></div>
+      <div class="card"><h3>⚠️ 账号封禁风险</h3><p>个人号自动化违反《微信个人账号使用规范》，频繁使用可能被限制功能或封号。建议小号、控频、勿群发。</p></div>
+      <div class="card"><h3>📜 源可见许可证</h3><p>代码公开、可学习、可自用与为自用修改，但有署名与「禁止照搬 UI/CLI/GUI 及独有代码逻辑」等限制，详见 <a href="LICENSE" style="color:var(--accent)">LICENSE</a>。</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <div class="brand" style="font-size:16px">Auto<span>Chat</span></div>
+      <p style="margin-top:8px;max-width:420px">微信侧的本地 AI 助手。与腾讯 / 微信及其运营方无隶属或授权关系，仅供学习与技术研究，按「现状」提供，风险自负。</p>
+    </div>
+    <div style="display:flex;gap:26px;flex-wrap:wrap">
+      <a href="https://github.com/yushichadao/AutoChat">GitHub</a>
+      <a href="README.md">README</a>
+      <a href="LEGAL.md">LEGAL</a>
+      <a href="SECURITY.md">Security</a>
+      <a href="LICENSE">License</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,4 +1,6 @@
-# 法律与合规说明（LEGAL）
+# 法律与合规说明（LEGAL / Legal & Compliance）
+
+> **English summary**: AutoChat is a local WeChat AI assistant. This document is part of its public release and has two parts: **Part 1 (for users)** — the legal liability you may bear and the prohibited uses; **Part 2 (for maintainers & contributors)** — the legal structure, governance, and response process for this source-available project. **This is risk disclosure, not legal advice.** For specific cases, consult a licensed lawyer.
 
 > **本文件是 AutoChat 开源发布的一部分**，包含两部分内容：
 > **Part 1 面向使用者** —— 使用本工具可能承担的法律责任，以及明确禁止的用途；
@@ -9,7 +11,7 @@
 
 ---
 
-## Part 0 · 一页速览
+## Part 0 · 一页速览（At a Glance）
 
 **AutoChat 是什么**：一个把本机登录的微信账号接到 OpenAI 兼容模型上的本地助手。
 它做三件事：接收微信消息 → 判断要不要回 → 调模型 → 把回复发回微信。
@@ -37,7 +39,7 @@
 
 ---
 
-## Part 1 · 面向使用者
+## Part 1 · 面向使用者（For Users）
 
 ### 1.1 工具本身通常不违法
 
@@ -260,7 +262,7 @@
 
 ---
 
-## Part 2 · 面向维护者与贡献者
+## Part 2 · 面向维护者与贡献者（For Maintainers & Contributors）
 
 ### 2.1 源可见发布清单（本仓库已完成）
 
@@ -269,9 +271,9 @@
 | 许可证 | AutoChat 源可见许可证（`LICENSE`，非 OSI 标准，含中英双语） |
 | 商标与署名声明 | 已写入 `LICENSE` 附加声明与本文件 |
 | 第三方组件归属 | 见 2.3 与 `tools/README.md` |
-| 行为准则 | README「源可见与治理 · 行为准则」章节 |
-| 贡献指南 | README「源可见与治理 · 贡献」章节 |
-| 安全漏洞报告流程 | README「源可见与治理 · 安全」章节 |
+| 行为准则 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)（亦见 README 治理章节） |
+| 贡献指南 | [CONTRIBUTING.md](CONTRIBUTING.md)（亦见 README 治理章节） |
+| 安全漏洞报告流程 | [SECURITY.md](SECURITY.md)（亦见 README 治理章节） |
 | 执法请求与侵权投诉 | 本文件 2.6 / 2.7 |
 | 禁止用途 | 本文件 1.2，README 顶部亦复述 |
 | 持续集成 | `.github/workflows/ci.yml` |
@@ -367,7 +369,7 @@
 
 ---
 
-## Part 3 · 参考规范
+## Part 3 · 参考规范（References）
 
 **中国大陆**
 

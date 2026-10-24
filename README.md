@@ -743,6 +743,8 @@ autochat uninstall --purge    # 连 .env 与 data/ 一起清
 
 ## 源可见与治理
 
+> 独立治理文件（GitHub 入口）：[CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md)
+
 **许可性质**：AutoChat 采用自定义 **源可见许可证**（非 OSI 标准开源许可）。代码公开、可学习、可自用与为自用修改，但**禁止冒用原作者名义发布、禁止抄袭 UI/CLI/GUI、禁止照搬独有代码逻辑**——详见仓库根目录的 [LICENSE](LICENSE)（中英双语）。
 
 | 文件 | 内容 |
