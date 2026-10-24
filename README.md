@@ -433,9 +433,6 @@ AI_PERSONA_FILE=./persona.txt
 会话 id 就是微信的会话标识：群是 `xxx@chatroom`，好友是 `wxid_xxx`。
 不配置就用全局设置；`npm run check` 会列出当前生效的按会话配置。
 
-会话 id 就是微信的会话标识：群是 `xxx@chatroom`，好友是 `wxid_xxx`。
-不配置就用全局设置；`npm run check` 会列出当前生效的按会话配置。
-
 ---
 
 ## 上下文记忆
