@@ -392,7 +392,7 @@
 **开源治理**
 
 - OSI Open Source Definition（开源定义）
-- MIT License
+- 源可见 / 非商业许可证（如 BSL、SSPL）范例
 - Contributor Covenant（行为准则范式）
 
 ---
