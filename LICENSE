@@ -8,8 +8,8 @@ Copyright © 2026 yushichadao and AutoChat contributors.
 本许可证（"许可证"）规范你对本软件（AutoChat，包括但不限于其源代码、文档、配置与示例，以下简称"本软件"）的使用、复制、修改与分发行为。
 This License ("License") governs your use, copying, modification, and distribution of the software known as AutoChat (including, but not limited to, its source code, documentation, configuration, and examples; hereinafter the "Software").
 
-本许可证**不是**任何开放源代码促进会（OSI）批准的开源许可证。本软件以"源可见"（source-available）方式提供：你可以查看、学习、为个人自用而部署与修改，但你**不得**以原作者名义冒用发布、不得抄袭其图形 / 命令行界面、不得照搬其独有代码逻辑。
-This License is **NOT** an open-source license approved by the Open Source Initiative (OSI). The Software is provided on a "source-available" basis: you may view, study, deploy, and modify it for your own personal use, but you **may not** publish it under the original author's name, copy its graphical / command-line interfaces, or replicate its unique code logic.
+本许可证**不是**任何开放源代码促进会（OSI）批准的开源许可证，而是一份"源可见、但带使用限制"的许可证。本软件以"源可见"（source-available）方式提供：你可以查看、学习、为**个人非商业**目的而部署与修改，但你**不得**以原作者名义冒用发布、不得抄袭其 GUI 视觉设计、不得照搬其独有代码逻辑的具体实现；任何修改版或衍生版的**公开发布**均须事先取得书面授权。
+This License is **NOT** an open-source license approved by the Open Source Initiative (OSI). It is a "source-available, restricted" license. The Software is provided on a "source-available" basis: you may view, study, deploy, and modify it for **personal, non-commercial** purposes, but you **may not** publish it under the original author's name, copy its GUI visual design, or replicate the concrete implementation of its unique code logic; any public release of a modified or derivative version requires prior written authorization.
 
 ================================================================
 第 1 条 · 授予的权利 / Section 1 · Grant of Rights
@@ -18,8 +18,8 @@ This License is **NOT** an open-source license approved by the Open Source Initi
 1.1 查看与学习：你有权查看、阅读、学习本软件的全部源代码与文档。
 1.1 View and Study: You may view, read, and study all of the Software's source code and documentation.
 
-1.2 自用部署：你有权为个人学习或非商业自用目的，在本机下载、安装、部署、运行本软件。
-1.2 Personal Deployment: You may download, install, deploy, and run the Software on your own machine for personal learning or non-commercial personal use.
+1.2 非商业自用部署：你有权为**个人学习或非商业自用**目的，在本机下载、安装、部署、运行本软件。**商业使用（包括但不限于公司内部署、接商业客服、以本项目为核心或组成部分提供付费服务）不在本许可证授予范围内**，须事先取得作者的书面授权。
+1.2 Non-Commercial Personal Deployment: You may download, install, deploy, and run the Software on your own machine for **personal learning or non-commercial personal use**. **Commercial use (including but not limited to in-house corporate deployment, commercial customer-service use, or providing paid services built on or incorporating the Software) is NOT granted by this License** and requires the author's prior written authorization.
 
 1.3 自用修改：你有权为自用目的修改本软件源码；但修改版仅供你自己使用，**不得对外分发**。
 1.3 Personal Modification: You may modify the Software's source code for your own use; however, such modified versions are for your own use only and **must not be distributed**.
@@ -35,21 +35,31 @@ The foregoing rights take effect on the date you first obtain the Software and a
     不得移除、修改或隐藏本软件中的版权声明、许可声明与作者标识。任何修改版、衍生作品或再分发物，不得以原作者 yushichadao 的名义发布、署名，或声称经其认可、授权、背书。不得将本软件改头换面后以他人名义冒充为原创作品发布。
     You must not remove, modify, or obscure any copyright, license, or authorship notices in the Software. No modified version, derivative work, or redistributable may be published or attributed under the name of the original author yushichadao, nor represented as endorsed, authorized, or approved by them. You may not rebrand the Software and publish it as someone else's original work.
 
-2.2 禁止抄袭 UI / CLI / GUI / No Copying of UI, CLI, or GUI
-    不得复制、模仿、改头换面地使用本软件的图形用户界面（GUI）、命令行界面（CLI）及其整体结构、布局、交互流程与视觉设计。你可以学习其设计思路——具体实现与设计须自行完成（一句话：自己写去）。
-    You may not copy, imitate, or re-skin the Software's graphical user interface (GUI), command-line interface (CLI), or their overall structure, layout, interaction flows, and visual design. You may learn from its design philosophy—but the concrete implementation and design must be your own (in one phrase: write your own).
+2.2 图形用户界面（GUI）保护 / GUI Visual Design Protection
+    仅禁止复制、模仿本软件的**图形用户界面（GUI）的整体视觉设计**（布局、配色、控件样式、交互视觉）。你可以学习其设计思路，但具体视觉实现须自行完成（一句话：GUI 自己画）。
+    **本条款不适用于命令行界面（CLI）**：CLI 的命令名称、参数结构、终端交互思路不受本条款限制，可自行借鉴与实现。
+    2.2 Only the **graphical user interface (GUI) visual design** (layout, color scheme, control styling, interaction visuals) is protected against copying or imitation. You may learn from its design philosophy, but the concrete visual implementation must be your own (in one phrase: draw your own GUI).
+    **This clause does NOT apply to the command-line interface (CLI)**: CLI command names, parameter structures, and terminal interaction patterns are not restricted and may be freely studied and reimplemented.
 
-2.3 禁止照搬独有代码逻辑 / No Replication of Unique Code Logic
-    不得提取、复制或实质性复用本软件特有的实现逻辑、算法、模块架构、数据结构与独特技术方案，用于任何其他软件项目（无论是否署名、无论是否开源）。与本项目无关的、行业通用的常规实现方式，不受此限。
-    You may not extract, copy, or substantially reuse the Software's distinctive implementation logic, algorithms, module architecture, data structures, or unique technical solutions for any other software project (whether or not attributed, whether or not open-sourced). General, industry-common implementations unrelated to this project are not restricted.
+2.3 独有代码逻辑 / Unique Code Logic
+    仅禁止**逐字复制或实质性复用**本软件特有的具体实现、私有算法、模块架构与数据结构，用于其他软件项目。仅受思路启发而**独立重写（clean-room）**的实现，不构成本条款的违反。与本项目无关的、行业通用的常规实现方式，不受此限。
+    2.3 Only **verbatim copying or substantial reuse** of the Software's distinctive concrete implementations, private algorithms, module architectures, and data structures for other software projects is prohibited. An implementation that is **independently written (clean-room)** while merely inspired by the ideas does NOT violate this clause. General, industry-common implementations unrelated to this project are not restricted.
 
-2.4 再分发 / Redistribution
-    本软件默认不鼓励对外再分发。如确需分发修改版或衍生作品，必须：(a) 在显眼位置标注为"基于 AutoChat 的独立修改版"；(b) 遵守 2.1（不得冒名）；(c) 随分发物附上本许可证全文且不得修改。本项目不包含、也不打包分发任何第三方 hook DLL（含闭源方案）；第三方组件遵循其各自许可，由使用者自行获取。
-    Redistribution of the Software is not encouraged. If you must redistribute a modified or derivative version, you must: (a) clearly label it as an "independent modification based on AutoChat"; (b) comply with Section 2.1 (no misrepresentation); (c) include this License in full and unmodified. This project does not include or bundle any third-party hook DLL (including closed-source ones); third-party components are governed by their own licenses and obtained by the user.
+2.4 再分发与衍生 / Redistribution and Derivatives
+    (a) **原版源码**：允许为个人非商业目的转发、镜像本软件原版（未修改），但不得冒名、不得修改、须保留本许可证与版权声明。
+    (b) **修改版 / 衍生版**：任何修改版或衍生作品的**公开发布**（含在 GitHub 等平台公开 fork、发布 release）**均须事先取得作者书面授权**。获得授权后，必须：(i) 在显眼位置标注为"基于 AutoChat 的独立修改版"；(ii) 遵守 2.1（不得冒名）；(iii) 随分发物附上本许可证全文且不得修改。
+    (c) 本项目不包含、也不打包分发任何第三方 hook DLL（含闭源方案）；第三方组件遵循其各自许可，由使用者自行获取。
+    2.4 (a) **Original source**: you may forward or mirror the unmodified original Software for personal non-commercial purposes, provided you do not misrepresent authorship, do not modify it, and retain this License and copyright notices.
+    (b) **Modified / derivative versions**: any **public release** of a modified or derivative version (including public forks or releases on platforms such as GitHub) **requires the author's prior written authorization**. Upon authorization you must: (i) clearly label it as an "independent modification based on AutoChat"; (ii) comply with Section 2.1 (no misrepresentation); (iii) include this License in full and unmodified.
+    (c) This project does not include or bundle any third-party hook DLL (including closed-source ones); third-party components are governed by their own licenses and obtained by the user.
 
-2.5 违法用途 / No Illegal Use
+2.5 名称与标识（软声明）/ Name and Mark (Soft Claim)
+    "AutoChat" 名称及其标识为作者所有。衍生作品**不得使用"AutoChat"名称或相似标识**，以免造成来源混淆，但可如实说明"基于 AutoChat 开发"。本声明不构成商标注册，亦不赋予任何商标权利。
+    2.5 The name "AutoChat" and its marks are owned by the author. Derivative works **must not use the name "AutoChat" or a confusingly similar mark**, but may accurately state that they are "based on AutoChat". This is a soft claim only; it does not constitute trademark registration nor grant any trademark rights.
+
+2.6 违法用途 / No Illegal Use
     本许可证不授权任何违法用途。冒充他人、批量群发、诈骗、骚扰、非法获取或外传他人个人信息等行为，详见 LEGAL.md。使用者因违反禁止用途产生的全部法律责任，由使用者自行承担。
-    This License does not authorize any illegal use. Impersonation, mass messaging, fraud, harassment, or the unlawful collection or disclosure of others' personal information are prohibited; see LEGAL.md. Users bear all legal responsibility arising from any violation.
+    2.6 This License does not authorize any illegal use. Impersonation, mass messaging, fraud, harassment, or the unlawful collection or disclosure of others' personal information are prohibited; see LEGAL.md. Users bear all legal responsibility arising from any violation.
 
 ================================================================
 第 3 条 · 免责声明与无担保 / Section 3 · Disclaimer and No Warranty
@@ -62,8 +72,8 @@ The Software is provided "AS IS", without warranty of any kind, express or impli
 第 4 条 · 授权终止 / Section 4 · Termination
 ================================================================
 
-若你违反本许可证任何条款，尤其是第 2 条的限制，本许可证授予你的权利将自动终止。终止后，你不得继续使用、复制或分发本软件（已合法持有的副本应删除或停止分发）。第 2 条的限制在终止后继续有效，因其保护的是原作者的权利，而非单纯的许可条件。
-If you breach any term of this License, especially the restrictions in Section 2, the rights granted to you terminate automatically. Upon termination you must cease using, copying, or distributing the Software (and delete or stop distributing any copies lawfully held). The restrictions in Section 2 survive termination, as they protect the original author's rights rather than merely being license conditions.
+若你违反本许可证任何条款，尤其是第 2 条的限制，本许可证授予你的权利将自动终止。终止后，你不得继续使用、复制或分发本软件（已合法持有的副本应删除或停止分发）。第 2 条的限制（含署名、GUI、代码逻辑、名称标识）在终止后继续有效，因其保护的是原作者的权利，而非单纯的许可条件。
+If you breach any term of this License, especially the restrictions in Section 2, the rights granted to you terminate automatically. Upon termination you must cease using, copying, or distributing the Software (and delete or stop distributing any copies lawfully held). The restrictions in Section 2 (attribution, GUI, code logic, name and mark) survive termination, as they protect the original author's rights rather than merely being license conditions.
 
 ================================================================
 第 5 条 · 与 LEGAL.md 的关系 / Section 5 · Relationship with LEGAL.md
@@ -73,21 +83,35 @@ LEGAL.md 是法律与合规风险提示，不是法律意见，也不构成免�
 LEGAL.md is a legal and compliance risk notice, not legal advice, and does not constitute a basis for exemption. The restrictions in this License take precedence over any broad reading of "study / modify"; in case of ambiguity, the restrictions govern. Consult a qualified lawyer for compliance, privacy, or platform-rule questions.
 
 ================================================================
-第 6 条 · 条款变更 / Section 6 · Amendment
+第 6 条 · 专利 / Section 6 · Patent
+================================================================
+
+本许可证**不授予任何专利许可**。无论作者是否持有与本软件相关的专利，均不因本许可证而授予你任何专利实施权。
+This License **grants no patent license**. Regardless of whether the author holds any patents related to the Software, no right to practice any patent is granted by this License.
+
+================================================================
+第 7 条 · 条款变更 / Section 7 · Amendment
 ================================================================
 
 作者保留随时修订本许可证的权利。新条款适用于其发布之后获取或使用本软件的行为。
 The author reserves the right to amend this License at any time. New terms apply to any act of obtaining or using the Software after their publication.
 
 ================================================================
-第 7 条 · 语言 / Section 7 · Language
+第 8 条 · 语言 / Section 8 · Language
 ================================================================
 
 本许可证以中文与英文双语发布。如两种文本存在歧义或冲突，以**中文**文本为准。
 This License is published in both Chinese and English. In the event of any ambiguity or conflict between the two texts, the **Chinese** text prevails.
 
 ================================================================
-第 8 条 · 第三方组件 / Section 8 · Third-Party Components
+第 9 条 · 管辖 / Section 9 · Governing Law
+================================================================
+
+本许可证受**中华人民共和国法律**管辖并据其解释（不含冲突法规则）。因本许可证或本软件产生的争议，由作者所在地有管辖权的**人民法院**管辖。
+This License is governed by and construed in accordance with the laws of the **People's Republic of China** (excluding conflict-of-law rules). Disputes arising from this License or the Software are subject to the jurisdiction of the competent **People's Court** at the author's location.
+
+================================================================
+第 10 条 · 第三方组件 / Section 10 · Third-Party Components
 ================================================================
 
 本软件可对接第三方 hook DLL 等组件。此类组件遵循其各自许可，由使用者自行获取。本项目不包含、不打包分发任何第三方 DLL（含闭源方案）；对其安全性、合法性不作任何担保。详见 LEGAL.md 第 2.3 节。
