@@ -69,7 +69,12 @@ export function loadConfig({ env = process.env, rootDir = ROOT } = {}) {
   const fileEnv = envFile && fs.existsSync(envFile) ? parseEnv(fs.readFileSync(envFile, 'utf8')) : {};
   const v = { ...fileEnv, ...env };
   const jsonPath = v.WX_CONFIG_FILE ? path.resolve(v.WX_CONFIG_FILE) : path.join(rootDir, 'config.json');
-  const json = readJson(jsonPath);
+  let json = {};
+  try {
+    json = readJson(jsonPath); // config.json 属辅助配置，解析失败不连带主程序起不来
+  } catch (err) {
+    console.warn(`[config] 读取 ${jsonPath} 失败，按空配置继续：${err.message}`);
+  }
   const dataDir = v.WX_DATA_DIR ? path.resolve(v.WX_DATA_DIR) : path.join(rootDir, 'data');
 
   const cfg = {
@@ -195,6 +200,10 @@ export function loadConfig({ env = process.env, rootDir = ROOT } = {}) {
       /** 白名单：非空时只有这些会话回；黑名单优先于白名单 */
       allowChats: csv(v.AI_ALLOW_CHATS),
       denyChats: csv(v.AI_DENY_CHATS),
+      /** 回复拆条的最大字符数（超出拆成多条）；改这项在生产中现在会真正生效 */
+      maxReplyChars: int(v.AI_MAX_REPLY_CHARS, 900),
+      /** 是否在回复发给微信前去掉 markdown 标记（如 **粗体**、`代码`）；默认开 */
+      stripMarkdown: bool(v.AI_STRIP_MARKDOWN, true),
     },
 
     /** 按会话（群 wxid / 好友 wxid）的差异化配置，见 pickChats 说明 */

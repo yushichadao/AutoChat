@@ -11,6 +11,7 @@ import { groupedProviders } from '../ai/providers.js';
 import { listModels, testChat, discoverLocal, reviewConfig } from '../ai/probe.js';
 import { install, uninstall, installStatus } from './installer.js';
 import { isRunning, killProcess, ps, wmiCreate } from './win.js';
+import { spawn, spawnSync } from 'node:child_process';
 import { HookClient } from '../bridge/hook-client.js';
 import { ContactCache } from '../bridge/contacts.js';
 
@@ -29,17 +30,32 @@ import { ContactCache } from '../bridge/contacts.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const UI_DIR = path.join(HERE, 'ui');
 
+/** 回传前端前的 .env 脱敏：密钥类只保留「是否已配置」布尔，杜绝真实密钥进入浏览器 DOM。 */
+const SENSITIVE_ENV = new Set(['AI_API_KEY', 'WX_WEBHOOK_TOKEN']);
+export function safeEnv(env) {
+  const out = {};
+  for (const [k, v] of Object.entries(env || {})) out[k] = SENSITIVE_ENV.has(k) ? Boolean(v) : v;
+  return out;
+}
+/** 打印日志时把 URL 里的令牌脱敏，避免令牌出现在终端/日志里。 */
+const maskToken = (u) => String(u).replace(/token=[^&]+/i, 'token=***');
+
 /** 只允许 GUI 改的 .env 键（避免手滑写坏别的） */
 export const EDITABLE_ENV = new Set([
   'AI_ENABLED', 'AI_MASTER_SWITCH', 'AI_BASE_URL', 'AI_API_KEY', 'AI_MODEL',
   'AI_TIMEOUT_MS', 'AI_MAX_TOKENS', 'AI_TEMPERATURE', 'AI_CONTEXT_TURNS',
   'AI_CONTEXT_TTL_MS', 'AI_CONTEXT_MAX_CHARS', 'AI_COOLDOWN_MS', 'AI_MAX_PER_HOUR',
   'AI_MAX_CONCURRENT', 'AI_GROUP_REPLY', 'AI_TRIGGER_PREFIX', 'AI_GROUP_AT_NAMES',
-  'AI_ALLOW_CHATS', 'AI_DENY_CHATS', 'AI_MAX_REPLY_CHARS', 'AI_PERSONA_FILE',
+  'AI_ALLOW_CHATS', 'AI_DENY_CHATS', 'AI_MAX_REPLY_CHARS', 'AI_STRIP_MARKDOWN', 'AI_PERSONA_FILE',
   'AI_SYSTEM_PROMPT', 'WX_SELF_ID', 'WX_SELF_MODE', 'WX_RECEIVE_MODE',
   'WX_POLL_CHATS', 'WX_POLL_DB', 'WX_POLL_LIMIT', 'WX_POLL_INTERVAL_MS',
   'WX_INJECT_MODE', 'WX_DLL_PATH', 'WX_INSTALL_DIR', 'WX_HOOK_PORT',
   'WX_WEBHOOK_PORT', 'WX_WEBHOOK_TOKEN', 'LOG_LEVEL',
+]);
+
+/** /api/chats 允许写入的字段（防御越权写入 apiKey 等敏感键）。 */
+export const CHAT_FIELDS = new Set([
+  'enabled', 'groupReply', 'personaFile', 'model', 'baseUrl', 'systemPrompt', 'triggerPrefix',
 ]);
 
 const MIME = {
@@ -177,6 +193,10 @@ export async function buildState(rootDir) {
   }
 
   const chats = readChats(rootDir);
+  // 按会话 apiKey 属敏感信息，回传前端前剔除，避免进入浏览器 DOM
+  for (const c of Object.values(chats)) {
+    if (c && typeof c === 'object') delete c.apiKey;
+  }
   await attachContactNames(rootDir, memory, chats);
 
   return {
@@ -186,7 +206,7 @@ export async function buildState(rootDir) {
     gate: sw.status(),
     installed: inst,
     autoStart: inst.autoStart,
-    env: readEnvFile(envFile(rootDir)),
+    env: safeEnv(readEnvFile(envFile(rootDir))),
     chats,
     memory,
     config: {
@@ -328,7 +348,13 @@ async function handleApi(req, res, url, rootDir) {
     const body = await readBody(req);
     const chats = readChats(rootDir);
     for (const [id, c] of Object.entries(body.chats || {})) {
-      chats[id] = c && typeof c === 'object' ? c : { enabled: true };
+      const clean = {};
+      if (c && typeof c === 'object') {
+        for (const k of CHAT_FIELDS) if (k in c) clean[k] = c[k];
+      } else {
+        clean.enabled = true;
+      }
+      chats[id] = clean;
     }
     for (const id of body.remove || []) delete chats[id];
     writeChats(rootDir, chats);
@@ -420,34 +446,74 @@ async function handleApi(req, res, url, rootDir) {
   return json(res, 404, { error: 'not found' });
 }
 
-/** 打开配置器界面：--window 用 Edge app 独立窗口（ps1 会先关掉遗留的旧窗口），否则用系统默认浏览器。 */
-async function openUi(url, windowMode) {
-  const { spawn } = await import('node:child_process');
-  if (windowMode && process.platform === 'win32') {
-    const ps = spawn(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        path.join(HERE, 'gui-window.ps1'),
-        '-Url',
-        url,
-      ],
-      { detached: true, stdio: 'ignore', windowsHide: false }
-    );
-    ps.unref();
-    return;
+/**
+ * 探测一个可用的浏览器可执行文件（优先 Edge / Chrome / Chromium），
+ * 用于「单开独立浏览器窗口」而不是污染用户的默认浏览器。
+ */
+function findBrowser() {
+  const which = (cmd) => {
+    try {
+      const r = spawnSync('where', [cmd], { windowsHide: true }).stdout?.toString().trim().split(/\r?\n/)[0];
+      return r && fs.existsSync(r) ? r : null;
+    } catch { return null; }
+  };
+  const exists = (p) => (fs.existsSync(p) ? p : null);
+  if (process.platform === 'win32') {
+    const list = [
+      () => which('msedge'),
+      () => which('chrome'),
+      () => which('chromium'),
+      () => exists('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'),
+      () => exists('C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'),
+      () => exists('C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'),
+      () => exists('C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'),
+    ];
+    for (const f of list) { const r = f(); if (r) return r; }
+    return null;
+  }
+  if (process.platform === 'darwin') {
+    for (const p of [
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    ]) { const r = exists(p); if (r) return r; }
+    return null;
+  }
+  for (const c of ['google-chrome', 'chromium', 'chromium-browser', 'chrome']) { const r = which(c); if (r) return r; }
+  return null;
+}
+
+/**
+ * 打开配置器界面。
+ * 关键 UX：永远用「固定的浏览器 + 独立的用户数据目录」单开一个独立窗口（--new-window），
+ * 不会在用户正在用的默认浏览器里新建选项卡，也不会跨浏览器乱开。
+ * 若探测不到具体浏览器，回退到系统默认打开（此时无法保证单开）。
+ */
+function openUi(url, windowMode) {
+  if (!windowMode) return false;
+  const profile = path.join(ROOT, 'data', 'gui-browser'); // 独立 profile，与用户日常浏览器完全隔离
+  const exe = findBrowser();
+  if (exe) {
+    try {
+      const child = spawn(
+        exe,
+        ['--new-window', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', url],
+        { detached: true, stdio: 'ignore', windowsHide: true }
+      );
+      child.unref();
+      return true;
+    } catch { /* 落到回退 */ }
   }
   const opener = process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open';
   const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
   const child = spawn(opener, args, { detached: true, stdio: 'ignore' });
   child.unref();
+  return true;
 }
 
 /** 启动图形化配置器。 */
 export async function startGui({ rootDir = ROOT, port = 8788, window = false } = {}) {
+  port = Number(port) || 8788; // 防御：上游未传 / 传 0 / NaN 时回退默认，避免 listen(0) 后 URL 仍写 0（浏览器 ERR_UNSAFE_PORT）
   const dataDir = path.join(rootDir, 'data');
   const guiStateFile = path.join(dataDir, 'gui.json');
   const token = crypto.randomBytes(16).toString('hex');
@@ -510,21 +576,24 @@ export async function startGui({ rootDir = ROOT, port = 8788, window = false } =
     }
     if (prev && prev.port === port && prev.token) {
       const url = `http://127.0.0.1:${port}/?token=${prev.token}`;
-      console.log(`配置器已在运行，直接打开（不重复起服务）：${url}`);
-      await openUi(url, window);
+      console.log(`配置器已在运行，直接打开（不重复起服务）：${maskToken(url)}`);
+      await openUi(url, true); // 复用旧实例：端口被自己占用就打开旧的，不新起服务
       return { url, token: prev.token, server: null, reused: true };
     }
     throw new Error(`端口 ${port} 已被其它程序占用。换个端口再启动：autochat gui --port 8789`);
-  }
+    }
 
-  // 令牌落到 data/gui.json：重复启动时靠它认出「这是我们自己的配置器」并复用。
-  fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(guiStateFile, `${JSON.stringify({ port, token }, null, 2)}\n`, 'utf8');
+    // 令牌落到 data/gui.json：重复启动时靠它认出「这是我们自己的配置器」并复用。
+    // 该文件含会话令牌，限制为仅当前用户可读写。
+    const actualPort = server.address().port; // 用 listen 后真实分配的端口，绝不可能是 0
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(guiStateFile, `${JSON.stringify({ port: actualPort, token }, null, 2)}\n`, 'utf8');
+    try { fs.chmodSync(guiStateFile, 0o600); } catch { /* 非 POSIX 权限模型（如 Windows）可忽略 */ }
 
-  const url = `http://127.0.0.1:${port}/?token=${token}`;
-  console.log(`AutoChat 配置器已启动：${url}`);
-  console.log('关掉这个窗口就等于停掉配置器（不影响正在运行的助手）');
-  await openUi(url, window);
+    const url = `http://127.0.0.1:${actualPort}/?token=${token}`;
+    console.log(`AutoChat 配置器已启动：${maskToken(url)}（完整带令牌链接已用于本机自动打开）`);
+    console.log('关掉这个窗口就等于停掉配置器（不影响正在运行的助手）');
+    await openUi(url, window);
 
-  return { url, token, server };
+    return { url, token, server };
 }

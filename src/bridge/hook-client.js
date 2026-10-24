@@ -112,14 +112,15 @@ export class HookClient {
     for (const d of dialects) {
       for (const p of paths) {
         const r = await this.request('POST', p, d.build(toWxid, text));
-        if (r.status === 404 || r.status === 0) continue;
+        if (r.status === 404 || r.status === 0) continue; // 端点不存在才试下一个
+        // 收到响应后：成功立即返回并记住该方言/路径；业务失败则记录并尝试其余组合。
+        // 每个 (方言, 路径) 组合只会 POST 一次，绝不会重复发送同一条消息。
         const res = normalizeSend(r);
         if (res.ok) {
           this.dialect?.set('text', { dialect: d.name, path: p });
           return res;
         }
         last = res;
-        break;
       }
     }
     return last || { ok: false, message: '没有可用的发送接口' };

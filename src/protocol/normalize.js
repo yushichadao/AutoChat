@@ -142,7 +142,7 @@ export function normalizeMessage(raw, { selfId = '', selfMode = 'sender' } = {})
   const chatName = String(pick(node, CHAT_NAME_KEYS) ?? '');
 
   return {
-    id: String(pick(node, ID_KEYS) ?? `${chatId}:${senderId}:${Date.now()}`),
+    id: String(pick(node, ID_KEYS) ?? `${chatId}:${senderId}:${hashText(content)}`),
     chatType: isGroup ? 'group' : 'private',
     chatId,
     chatName,
@@ -171,4 +171,12 @@ export function normalizeDbRow(row, opts) {
 
 export function dedupeKey(m) {
   return `${m.chatId}|${m.senderId}|${m.id}`;
+}
+
+/** 内容指纹：无 msgid 时用作去重键的一部分，避免 Date.now() 导致同一条消息每次都判为新。 */
+function hashText(s) {
+  let h = 5381;
+  const str = String(s || '');
+  for (let i = 0; i < str.length; i += 1) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
 }

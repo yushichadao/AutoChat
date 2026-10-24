@@ -162,12 +162,26 @@ export class Receiver extends EventEmitter {
         }
         const selfId = this.selfId;
         const list = Array.isArray(body) ? body : [body];
+        // 后台预热联系人缓存（群名/发言人），后续 webhook 消息即可与轮询通道一致地补全名字；
+        // 同步 emit 时序保持不变，避免改变事件契约。
+        if (this.contacts) {
+          const ids = new Set();
+          for (const item of list) {
+            if (item?.senderId) ids.add(String(item.senderId));
+            const cid = item?.chatId || item?.roomId || item?.fromChatroom;
+            if (cid) ids.add(String(cid));
+          }
+          if (ids.size) this.contacts.lookup([...ids]).catch(() => {});
+        }
         for (const item of list) {
           const msg = normalizeMessage(item, { selfId, selfMode: this.selfMode });
-          if (msg) {
-            this.lastWebhookAt = Date.now();
-            this.emitMessage(msg, 'webhook');
-          }
+          if (!msg) continue;
+          const senderName = this.contacts?.nameOf(msg.senderId);
+          if (senderName) msg.senderName = senderName;
+          const chatName = this.contacts?.nameOf(msg.chatId);
+          if (chatName) msg.chatName = chatName;
+          this.lastWebhookAt = Date.now();
+          this.emitMessage(msg, 'webhook');
         }
       });
     });
@@ -316,7 +330,14 @@ export class Receiver extends EventEmitter {
   }
 
   async start() {
-    await this.startWebhook();
+    if (this.cfg.receiveMode !== 'poll') {
+      try {
+        await this.startWebhook();
+      } catch (err) {
+        // auto 模式下 webhook 起不来就降级为仅轮询；webhook 模式也先告警再退守轮询
+        this.log.warn(`webhook 启动失败，降级为仅轮询兜底: ${err.message}`);
+      }
+    }
     await this.startPoll();
     this.startWatchdog();
   }

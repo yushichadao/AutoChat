@@ -33,7 +33,7 @@ export class MasterSwitch {
     try {
       if (fs.existsSync(this.file)) {
         const text = fs.readFileSync(this.file, 'utf8').trim();
-        state = text ? 'paused' : 'paused';
+        state = 'paused'; // 哨兵文件存在即暂停（内容仅记录原因，不影响状态）
       }
     } catch (err) {
       this.log?.debug?.(`总闸状态读取失败: ${err.message}`);

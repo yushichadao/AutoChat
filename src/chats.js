@@ -66,7 +66,12 @@ export class ChatProfiles {
       let text = '';
       try {
         const file = path.isAbsolute(key) ? key : path.resolve(this.rootDir, key);
-        text = fs.readFileSync(file, 'utf8').trim();
+        const base = path.resolve(this.rootDir);
+        if (file !== base && !file.startsWith(base + path.sep)) {
+          this.log?.warn?.(`会话 ${chatId} 的人设文件路径越界，已忽略: ${key}`);
+        } else {
+          text = fs.readFileSync(file, 'utf8').trim();
+        }
       } catch (err) {
         this.log?.warn?.(`会话 ${chatId} 的人设文件读取失败: ${err.message}`);
       }

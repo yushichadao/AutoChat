@@ -564,7 +564,8 @@ async function cmdUninstall() {
 
 async function cmdGui() {
   const { startGui } = await import('../setup/server.js');
-  await startGui({ rootDir: ROOT, port: Number(opt('port', '8788')), window: flag('window') });
+  // 默认就打开单例浏览器窗口（单开独立窗口、不新建选项卡）；--no-window 可关闭自动打开（CI / 远程场景）
+  await startGui({ rootDir: ROOT, port: Number(opt('port', '8788')), window: !flag('no-window') });
 }
 
 function printHelp() {
@@ -581,7 +582,7 @@ ${C.bold}\u8fd0\u884c${C.reset}
   autochat start                \u524d\u53f0\u542f\u52a8\u670d\u52a1
   autochat status               \u72b6\u6001\u603b\u89c8\uff08\u670d\u52a1 / \u603b\u95f8 / \u914d\u7f6e / \u4e0a\u4e0b\u6587\uff09
   autochat doctor               \u73af\u5883\u4f53\u68c0\uff1a\u4e3a\u4ec0\u4e48\u673a\u5668\u4eba\u4e0d\u7406\u6211
-  autochat gui [--window]       \u56fe\u5f62\u5316\u914d\u7f6e\u7a97\u53e3\uff08--window \u7528\u684c\u9762\u7a97\u53e3\u6253\u5f00\uff09
+  autochat gui [--no-window]   图形化配置器（默认自动打开单例独立浏览器窗口；--no-window 关闭自动打开）
 
 ${C.bold}\u603b\u95f8${C.reset}\uff08\u81ea\u52a8\u5316\u6700\u6015\u505c\u4e0d\u4e0b\u6765\uff0c\u6240\u4ee5\u653e\u6700\u524d\u9762\uff09
   autochat pause [\u539f\u56e0]      \u7acb\u523b\u505c\u6b62\u81ea\u52a8\u56de\u590d\uff08\u4ecd\u63a5\u6536\u3001\u4ecd\u8bb0\u65e5\u5fd7\uff09

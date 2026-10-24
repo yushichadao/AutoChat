@@ -111,7 +111,10 @@ export class HookLifecycle {
 
     const injected = await this.applyInjectMode();
     if (injected.ok) return injected;
-    return this.applyProxyMode(injected.reason);
+    // inject 失败不再静默切换代理模式：proxy 会 kill 微信并重启、改变登录态，可能出乎用户意料。
+    // 明确报错并交由用户决定（例如改 WX_INJECT_MODE=proxy 或排查 DLL / 管理员权限）。
+    this.log.error(`注入失败，未自动切换代理模式（避免意外重启微信改变登录态）：${injected.reason}`);
+    return injected;
   }
 }
 

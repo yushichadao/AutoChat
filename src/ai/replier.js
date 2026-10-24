@@ -5,6 +5,8 @@ import { buildMessages, DEFAULT_PERSONA } from './prompt.js';
 import { Responder, stripMarkdown, splitReply } from './responder.js';
 import { ChatProfiles } from '../chats.js';
 import { AIClient } from './client.js';
+import path from 'node:path';
+import { ROOT } from '../config.js';
 
 /**
  * 微信侧的 AI 回复总入口。
@@ -216,14 +218,25 @@ export class AIReply {
   }
 }
 
+/** 人设文件路径围栏：只允许项目根目录（ROOT）内的文件，杜绝 ../ 或绝对路径穿越。 */
+function resolvePersona(rel, baseDir) {
+  if (!rel) return null;
+  const file = path.isAbsolute(rel) ? rel : path.resolve(baseDir, rel);
+  const base = path.resolve(baseDir);
+  return file !== base && !file.startsWith(base + path.sep) ? null : file;
+}
+
 /** 人设：文件优先于内联文本，再退回内置默认。 */
 function loadPersona(cfg) {
   if (cfg.personaFile) {
-    try {
-      const text = fs.readFileSync(cfg.personaFile, 'utf8').trim();
-      if (text) return text;
-    } catch {
-      /* 读不到就用下一档 */
+    const file = resolvePersona(cfg.personaFile, ROOT);
+    if (file) {
+      try {
+        const text = fs.readFileSync(file, 'utf8').trim();
+        if (text) return text;
+      } catch {
+        /* 读不到就用下一档 */
+      }
     }
   }
   if (cfg.systemPrompt && cfg.systemPrompt.trim()) return cfg.systemPrompt.trim();

@@ -1,5 +1,5 @@
 {
-  "$comment": "复制为 config.json 后修改。环境变量（.env）优先级高于本文件。",
+  "$comment": "复制为 config.json 后修改。环境变量（.env）优先级高于本文件。按会话可覆盖的字段见下例；密钥类（apiKey）建议走环境变量 AI_API_KEY，GUI 也不会把它写进 config.json。",
   "chats": {
     "123456789@chatroom": {
       "enabled": true,
@@ -7,7 +7,11 @@
       "personaFile": "./persona-group.txt"
     },
     "wxid_friend_example": {
-      "enabled": false
+      "enabled": false,
+      "model": "gpt-4o-mini",
+      "baseUrl": "https://api.openai.com/v1",
+      "systemPrompt": "你是我的私人助理。",
+      "triggerPrefix": "@小助手 "
     }
   }
 }

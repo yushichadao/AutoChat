@@ -130,10 +130,13 @@ export async function injectDll(pid, dllPath) {
   if (!fs.existsSync(dllPath)) return { ok: false, detail: `DLL 不存在: ${dllPath}` };
 
   const cs = cacheCs();
-  const safe = (s) => String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  // PowerShell 单引号串不展开 $() / 反引号，用它承载路径可杜绝命令注入；再把串内单引号转义为 ''。
+  // dllPath 作为变量 $dllPath 传参，不嵌入双引号串，从源头消除 $(...) 子表达式注入。
+  const safeSingle = (s) => String(s).replace(/'/g, "''");
   const script =
-    `Add-Type -TypeDefinition ([IO.File]::ReadAllText("${safe(cs)}")) -Language CSharp;` +
-    `[WxInjector]::Inject(${Number(pid)}, "${safe(dllPath)}")`;
+    `$dllPath = '${safeSingle(dllPath)}';` +
+    `Add-Type -TypeDefinition ([IO.File]::ReadAllText('${safeSingle(cs)}')) -Language CSharp;` +
+    `[WxInjector]::Inject(${Number(pid)}, $dllPath)`;
 
   const { ok, out, err } = await ps(script);
   if (!ok) return { ok: false, detail: err || out || 'powershell 执行失败' };
@@ -156,7 +159,7 @@ export async function deployProxyDll(installDir, dllPath, backup = true) {
 /** 结束所有微信主进程。 */
 export async function killWeChat(processName = 'Weixin.exe') {
   const name = processName.replace(/\.exe$/i, '');
-  const { ok, out } = await ps(`Stop-Process -Name '${name}' -Force -ErrorAction SilentlyContinue; "done"`);
+  const { ok, out } = await ps(`Stop-Process -Name '${name.replace(/'/g, "''")}' -Force -ErrorAction SilentlyContinue; "done"`);
   return ok && out === 'done';
 }
 
