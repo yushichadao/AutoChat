@@ -55,7 +55,7 @@ function card(title, inner) {
 }
 
 function field(label, value, id, type = 'text', ph = '', bind = '', listId = '') {
-  return `<label>${label}<input id="${id}" type="${type}" value="${esc(value ?? '')}" placeholder="${esc(ph)}"${bind ? ` data-bind="${esc(bind)}"` : ''}${listId ? ` list="${esc(listId)}"` : ''}></label>`;
+  return `<label>${label}<input id="${id}" type="${type}" value="${esc(value ?? '')}" placeholder="${esc(ph)}" autocomplete="off"${bind ? ` data-bind="${esc(bind)}"` : ''}${listId ? ` list="${esc(listId)}"` : ''}></label>`;
 }
 
 function numField(label, value, id, bind = '') {
@@ -143,9 +143,14 @@ function aiCard() {
       <div class="grid">
         ${field('接口地址（一般以 /v1 结尾）', f.base, 'aiBaseUrl', 'text', 'http://127.0.0.1:11434/v1', 'ai.base')}
         ${field(`密钥${keySet ? '（已配置，留空表示不改）' : '（本地模型不用填）'}`, '', 'aiApiKey', 'password', 'sk-…', 'ai.key')}
-        ${field('模型名（点输入框可下拉选，也可手输）', f.model, 'aiModel', 'text', 'qwen2.5:7b', 'ai.model', 'modelList')}
+        <label>模型名（点 ▾ 展开「本地已有 / 云端已拉取」，也可手输）
+          <div class="combo" id="modelCombo">
+            <input id="aiModel" type="text" value="${esc(f.model)}" placeholder="${esc('qwen2.5:7b')}" data-bind="ai.model" autocomplete="off">
+            <button type="button" class="combo-toggle" id="btnModelToggle" aria-label="展开模型列表">▾</button>
+            <div class="combo-panel" id="modelPanel" hidden></div>
+          </div>
+        </label>
       </div>
-      <datalist id="modelList">${(f.modelOptions || []).map((m) => `<option value="${esc(m)}">`).join('')}</datalist>
       <div class="row" style="margin-top:10px">
         <button class="btn" id="btnPullModels">拉取模型列表</button>
         <button class="btn primary" id="btnTestAi">测试一下能不能用</button>
@@ -194,6 +199,34 @@ function aiCard() {
      <div class="row end"><button class="btn primary big" id="btnSaveAi">保存 AI 配置</button></div>
      <p class="keyhint">保存后要重启服务才生效（顶栏「停止服务」→ 再「启动服务」）。</p>`
   );
+}
+
+/* ── 模型名下拉：自绘面板，分「本地已有 / 云端已拉取」两组 ── */
+function comboItem(m) {
+  return `<div class="combo-item" data-model="${esc(m)}">${esc(m)}</div>`;
+}
+function openModelPanel() {
+  const panel = document.getElementById('modelPanel');
+  if (!panel) return;
+  const local = [...new Set((discovered || []).flatMap((d) => d.models || []))];
+  const cloud = (form.ai.modelOptions || []).filter((m) => !local.includes(m));
+  let html = '';
+  if (local.length) html += `<div class="combo-grp"><div class="combo-grp-h">本地已有（本机已启动的模型服务）</div>${local.map(comboItem).join('')}</div>`;
+  if (cloud.length) html += `<div class="combo-grp"><div class="combo-grp-h">云端已拉取</div>${cloud.map(comboItem).join('')}</div>`;
+  if (!local.length && !cloud.length) html = `<div class="combo-empty">还没有模型来源：先在上面选一个「已启动」的本地服务，或点「拉取模型列表」。</div>`;
+  panel.innerHTML = html;
+  panel.hidden = false;
+  for (const el of panel.querySelectorAll('[data-model]')) {
+    el.onclick = () => {
+      const input = document.getElementById('aiModel');
+      if (input) { input.value = el.dataset.model; form.ai.model = el.dataset.model; }
+      closeModelPanel();
+    };
+  }
+}
+function closeModelPanel() {
+  const panel = document.getElementById('modelPanel');
+  if (panel) panel.hidden = true;
 }
 
 /** 按当前填的地址找到对应的预设，用于显示「一步步怎么做」。 */
@@ -605,6 +638,28 @@ function bind() {
     showSteps(r);
     refresh();
   });
+
+  // ── 模型名下拉交互（自绘面板：本地已有 / 云端已拉取）──
+  const mt = document.getElementById('btnModelToggle');
+  const mi = document.getElementById('aiModel');
+  if (mt) mt.onclick = (e) => {
+    e.stopPropagation();
+    const panel = document.getElementById('modelPanel');
+    if (panel && !panel.hidden) closeModelPanel();
+    else openModelPanel();
+  };
+  if (mi) {
+    mi.onfocus = openModelPanel;
+    mi.addEventListener('input', closeModelPanel); // 手输时收起（addEventListener 不覆盖 data-bind 的 oninput）
+  }
+  if (!window.__comboDocBound) {
+    document.addEventListener('click', (e) => {
+      const c = document.getElementById('modelCombo');
+      const panel = document.getElementById('modelPanel');
+      if (panel && !panel.hidden && c && !c.contains(e.target)) closeModelPanel();
+    });
+    window.__comboDocBound = true;
+  }
 }
 
 function showSteps(r) {
