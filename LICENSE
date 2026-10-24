@@ -1,43 +1,84 @@
-MIT License
+AutoChat 源可见许可证（Source-Available License）
+================================================================
 
-Copyright (c) 2026 AutoChat contributors
+版权所有 © 2026 yushichadao 及 AutoChat 贡献者。
+Copyright © 2026 yushichadao and AutoChat contributors.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+本文件是 AutoChat（以下简称「本软件」）的授权与限制条款。
+它不是 OSI 批准的开源许可证，而是一份「源码可见、但带使用限制」的许可证。
+只要你遵守下方条款，即可查看、学习、为自用而部署与修改本软件。
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+------------------------------------------------------------------
+一、授予的权利（你可以做什么）
+------------------------------------------------------------------
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. 查看、阅读、学习本软件的全部源码与文档。
+2. 为个人学习或非商业自用目的，在本机下载、部署、运行本软件。
+3. 为自用而修改本软件源码 —— 但修改版仅供你自己使用，不得对外分发。
 
----
+上述权利自你首次获取本软件之日起生效，且不收取任何费用。
 
-附加声明（不属于 MIT 许可本身，为使用与分发时的提示）
+------------------------------------------------------------------
+二、限制（你不可以做什么）
+------------------------------------------------------------------
 
-1. 独立第三方项目。本项目与腾讯 / 微信 / QQ 及其运营方无隶属或授权关系，
-   亦非其官方产品；本项目不使用、不修改、不重新分发任何第三方商标或 logo。
-2. 本项目按「现状」提供，不提供任何明示或默示的担保。
-3. 本项目不包含任何其他项目的源码或二进制；与其它实现仅通过公开协议对接。
-4. **禁止用途**：不得将本项目用于冒充他人、批量群发、诈骗、骚扰、
-   非法获取或外传他人个人信息等违法活动。详见 LEGAL.md 第 1.2 节。
-   使用者因违反禁止用途而产生的全部法律责任由使用者自行承担。
-5. 本项目仅提供第三方 hook DLL 的名称、版本适配与获取指引，
-   **不包含也不得打包分发任何第三方 DLL**（含闭源方案）。
-   用户自行下载使用的 DLL 由其作者授权，本项目不作担保。
-6. 本文件不构成法律意见。使用者应自行确保使用行为合法，
-   必要时咨询执业律师。
+2.1 署名与冒名
+    - 不得移除、修改或隐藏本软件中的版权声明、许可声明与作者标识。
+    - 任何修改版、衍生作品或再分发物，**不得以原作者 yushichadao 的名义发布、
+      署名，或声称经其认可、授权、背书**。
+    - 不得将本软件改头换面后以他人名义冒充为"原创作品"发布。
 
-法律与合规说明见 [LEGAL.md](LEGAL.md)；
-安全漏洞报告见 [SECURITY.md](SECURITY.md)；
-贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与
-[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
+2.2 禁止抄袭 UI / CLI / GUI
+    - 不得复制、模仿、改头换面地使用本软件的
+      **图形用户界面（GUI）、命令行界面（CLI）**
+      及其整体结构、布局、交互流程与视觉设计。
+    - 你可以学习其设计思路，但具体的实现与设计**必须自行完成**——
+      一句话：自己写去。
+
+2.3 禁止照搬独有代码逻辑
+    - 不得提取、复制或实质性复用本软件特有的
+      实现逻辑、算法、模块架构、数据结构与独特技术方案，
+      用于任何其他软件项目（无论是否署名、无论是否开源）。
+    - 与本项目无关的、行业通用的常规实现方式，不受此限。
+
+2.4 再分发
+    - 本软件默认**不鼓励对外再分发**。如确需分发修改版或衍生作品，必须：
+      (a) 在显眼位置标注为「基于 AutoChat 的独立修改版」；
+      (b) 不得冒用原作者名义（见 2.1）；
+      (c) 随分发物附上本许可证全文，且不得修改本许可证。
+    - 本项目**不包含、也不打包分发任何第三方 hook DLL**（含闭源方案）；
+      第三方组件遵循其各自许可，由使用者自行获取。
+
+2.5 违法用途一律禁止
+    - 本许可证不授权任何违法用途。冒充他人、批量群发、诈骗、骚扰、
+      非法获取或外传他人个人信息等行为，详见 LEGAL.md。
+    - 使用者因违反禁止用途而产生的全部法律责任，由使用者自行承担。
+
+------------------------------------------------------------------
+三、免责声明
+------------------------------------------------------------------
+
+本软件按「现状」（AS IS）提供，不提供任何明示或默示的担保，
+包括但不限于对适销性、特定用途适用性、不侵权性的担保。
+
+在任何情况下，作者及版权持有人均不对因使用或不能使用本软件
+而造成的任何索赔、损害或其他责任负责。
+
+免责声明在中国法域下仅约束你与维护者之间的合同关系，
+不能对抗受害人，也不能免除你的刑事责任。
+
+------------------------------------------------------------------
+四、与其他文件的关系
+------------------------------------------------------------------
+
+- LEGAL.md 是法律与合规风险提示，不是法律意见，也不构成免责依据；
+  涉及合规、隐私、平台规则的问题，请咨询执业律师。
+- 本许可证的「限制」条款（第二条）优先于任何"可以学习/修改"的宽泛理解；
+  若存在歧义，以第二条的限制性表述为准。
+
+------------------------------------------------------------------
+五、条款变更
+------------------------------------------------------------------
+
+作者保留随时修订本许可证条款的权利。
+新条款适用于其发布之后获取或使用本软件的行为。

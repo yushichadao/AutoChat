@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         ⚠️ **本项目仅供学习与个人使用。** 不得用于冒充他人、批量群发、诈骗等用途。
-        涉及违法用途的功能建议会被直接关闭，见 [CODE_OF_CONDUCT.md](../blob/main/CODE_OF_CONDUCT.md)。
+        涉及违法用途的功能建议会被直接关闭，见 README「行为准则」章节。
   - type: checkboxes
     attributes:
       label: 前置确认

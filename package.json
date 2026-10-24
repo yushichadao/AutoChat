@@ -4,7 +4,7 @@
   "private": false,
   "type": "module",
   "description": "AutoChat：微信侧的本地 AI 助手（注入 hook + 本地模型，零运行时依赖）",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "author": "AutoChat contributors",
   "keywords": [
     "wechat",
@@ -55,9 +55,6 @@
     "config.example.json",
     "README.md",
     "LEGAL.md",
-    "LICENSE",
-    "SECURITY.md",
-    "CODE_OF_CONDUCT.md",
-    "CONTRIBUTING.md"
+    "LICENSE"
   ]
 }

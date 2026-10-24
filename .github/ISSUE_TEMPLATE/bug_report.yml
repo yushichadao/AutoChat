@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        ⚠️ **请勿在此报告安全漏洞**，改用私密渠道：见 [SECURITY.md](../blob/main/SECURITY.md)。
+        ⚠️ **请勿在此报告安全漏洞**，改用私密渠道：见 README「安全」章节。
 
         ⚠️ **本项目仅供学习与个人使用。** 请确认你的使用场景合法合规，
         不得用于冒充他人、批量群发、诈骗等用途（见 [LEGAL.md](../blob/main/LEGAL.md)）。

@@ -49,7 +49,7 @@ jobs:
           total=$(git log --format='%H' -n 20 | wc -l)
           echo "最近 $total 个提交中，含 Signed-off-by 的有 $bad 个"
           if [ "$bad" -lt "$total" ]; then
-            echo "::error::提交信息缺少 Signed-off-by 行，详见 CONTRIBUTING.md"
+            echo "::error::提交信息缺少 Signed-off-by 行，详见 LICENSE 与 README「贡献」章节"
             exit 1
           fi
 
