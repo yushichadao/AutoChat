@@ -13,6 +13,13 @@ $paths = @(
 )
 $edge = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
+# 多开保护：先关掉之前遗留的配置器窗口（重复启动时旧窗口不会自己消失）。
+# 只按窗口标题精确匹配本配置器的 Edge --app 窗口，不动用户其它 Edge 窗口。
+Get-Process msedge -ErrorAction SilentlyContinue |
+  Where-Object { $_.MainWindowTitle -eq 'AutoChat 配置器' } |
+  ForEach-Object { $null = $_.CloseMainWindow() }
+Start-Sleep -Milliseconds 400
+
 if ($edge) {
   Start-Process -FilePath $edge -ArgumentList "--app=$Url", "--window-size=1180,900"
 } else {

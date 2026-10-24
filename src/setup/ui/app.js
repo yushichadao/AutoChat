@@ -7,6 +7,8 @@ let state = null;
 let providers = { groups: [] };
 /* 本机扫到的模型服务 */
 let discovered = [];
+/* 安装/卸载步骤日志：存模块变量，重绘后保留；为空时不渲染（避免一根空灰条） */
+let installLogText = '';
 /* 用户正在填的内容：界面重绘时从这里回填，避免输入被冲掉 */
 const form = {
   ai: { base: '', key: '', model: '', providerId: '', modelOptions: [], result: null, review: [] },
@@ -52,8 +54,8 @@ function card(title, inner) {
   return `<section class="card"><h2>${title}</h2>${inner}</section>`;
 }
 
-function field(label, value, id, type = 'text', ph = '', bind = '') {
-  return `<label>${label}<input id="${id}" type="${type}" value="${esc(value ?? '')}" placeholder="${esc(ph)}"${bind ? ` data-bind="${esc(bind)}"` : ''}></label>`;
+function field(label, value, id, type = 'text', ph = '', bind = '', listId = '') {
+  return `<label>${label}<input id="${id}" type="${type}" value="${esc(value ?? '')}" placeholder="${esc(ph)}"${bind ? ` data-bind="${esc(bind)}"` : ''}${listId ? ` list="${esc(listId)}"` : ''}></label>`;
 }
 
 function numField(label, value, id, bind = '') {
@@ -66,9 +68,7 @@ function gateCard() {
     '总闸（随时拉下）',
     `<p class="hint">自动化最怕停不下来。总闸一拉，<b>立刻停止自动回复</b>（仍接收消息、仍记日志），不用重启、不用进命令行。恢复时点一下即可。</p>
      <div class="row">
-       <button class="btn danger big" id="btnPause">${paused ? '已暂停' : '暂停自动回复'}</button>
-       <button class="btn primary big" id="btnResume">恢复自动回复</button>
-       <button class="btn ghost big" id="btnStopSvc">停止整个服务</button>
+       <button class="btn ${paused ? 'primary' : 'danger'} big" id="btnGateToggle">${paused ? '恢复自动回复' : '暂停自动回复'}</button>
      </div>
      <pre class="mono">${paused ? '状态：已暂停\n' + esc(state.gate.reason) : '状态：总闸打开（正常回复中）'}</pre>`
   );
@@ -143,7 +143,7 @@ function aiCard() {
       <div class="grid">
         ${field('接口地址（一般以 /v1 结尾）', f.base, 'aiBaseUrl', 'text', 'http://127.0.0.1:11434/v1', 'ai.base')}
         ${field(`密钥${keySet ? '（已配置，留空表示不改）' : '（本地模型不用填）'}`, '', 'aiApiKey', 'password', 'sk-…', 'ai.key')}
-        ${field('模型名', f.model, 'aiModel', 'text', 'qwen2.5:7b', 'ai.model')}
+        ${field('模型名（点输入框可下拉选，也可手输）', f.model, 'aiModel', 'text', 'qwen2.5:7b', 'ai.model', 'modelList')}
       </div>
       <datalist id="modelList">${(f.modelOptions || []).map((m) => `<option value="${esc(m)}">`).join('')}</datalist>
       <div class="row" style="margin-top:10px">
@@ -306,7 +306,7 @@ function installCard() {
       <button class="btn danger ghost" id="btnUninstall">卸载（保留配置）</button>
       <button class="btn danger ghost" id="btnUninstallPurge">彻底卸载（删配置与数据）</button>
      </div>
-     <pre class="mono" id="installLog"></pre>`
+     ${installLogText ? `<pre class="mono" id="installLog">${esc(installLogText)}</pre>` : ''}`
   );
 }
 
@@ -330,7 +330,7 @@ function renderBadges(s) {
   $('#badgeGate').className = 'badge ' + (s.gate.paused ? 'warn' : 'on');
   $('#badgeAi').textContent = s.config.ai.enabled ? 'AI 已启用' : 'AI 未启用';
   $('#badgeAi').className = 'badge ' + (s.config.ai.enabled ? 'on' : 'off');
-  $('#btnToggleGate').textContent = s.gate.paused ? '恢复回复' : '立即暂停';
+  $('#btnToggleGate').textContent = s.gate.paused ? '恢复自动回复' : '暂停自动回复';
   $('#btnToggleService').textContent = s.running ? '停止服务' : '启动服务';
 }
 
@@ -358,16 +358,9 @@ function bind() {
   const val = (id) => (document.getElementById(id)?.value ?? '').trim();
   const checked = (id) => Boolean(document.getElementById(id)?.checked);
 
-  on('btnPause', async () => {
-    await api('/api/gate', { method: 'POST', body: JSON.stringify({ paused: true, reason: '图形化配置器点击暂停' }) });
-    refresh();
-  });
-  on('btnResume', async () => {
-    await api('/api/gate', { method: 'POST', body: JSON.stringify({ paused: false }) });
-    refresh();
-  });
-  on('btnStopSvc', async () => {
-    await api('/api/service', { method: 'POST', body: JSON.stringify({ action: 'stop' }) });
+  // 总闸：卡片大按钮与顶栏小按钮是同一个切换动作的两态，绑同一个 id
+  on('btnGateToggle', async () => {
+    await api('/api/gate', { method: 'POST', body: JSON.stringify({ paused: !state.gate.paused }) });
     refresh();
   });
   on('btnToggleGate', async () => {
@@ -598,6 +591,7 @@ function bind() {
       }),
     });
     showSteps(r);
+    refresh(); // 安装状态（已安装/自启/pid）变了，状态行与徽标要跟上
   });
   on('btnUninstall', async () => {
     if (!confirm('卸载会停止服务并清理自启与快捷方式，配置保留。继续？')) return;
@@ -614,9 +608,10 @@ function bind() {
 }
 
 function showSteps(r) {
+  installLogText = (r.steps || []).map((s) => `${s.ok ? '✓' : '✗'} ${s.name}${s.detail ? ' — ' + s.detail : ''}`).join('\n');
   const el = document.getElementById('installLog');
-  if (!el) return;
-  el.textContent = (r.steps || []).map((s) => `${s.ok ? '✓' : '✗'} ${s.name}${s.detail ? ' — ' + s.detail : ''}`).join('\n');
+  if (el) el.textContent = installLogText;
+  else render(); // 首次出结果时卡片里还没有日志框，重绘补上
 }
 
 // 先拿到服务商预设和本机已启动的模型服务，再渲染

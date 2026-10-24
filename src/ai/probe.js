@@ -78,38 +78,60 @@ export function explainError(err, ctx = {}) {
   return { title: '没成功', detail: raw ? raw.slice(0, 200) : '未知原因', fix: 'check-url' };
 }
 
-/** 拉取服务端可用的模型列表（OpenAI 兼容的 GET /models）。 */
+/**
+ * 拉取服务端可用的模型列表。
+ *
+ * 优先走 OpenAI 兼容的 GET {base}/models；拉不到再依次回退：
+ * ① 用户漏写 /v1 时补上试 {base}/v1/models；
+ * ② Ollama 原生接口是 /api/tags（很多教程让人填不带 /v1 的 11434 地址，这是最常见的「拉取不了」）。
+ * 哪条路先成功就用哪条；全军覆没时把最后一次的错误带回去。
+ */
 export async function listModels({ baseUrl, apiKey = '', timeoutMs = 8000 } = {}) {
   const base = normalizeBase(baseUrl);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const candidates = [`${base}/models`, `${base}/v1/models`, `${base}/api/tags`];
   try {
-    const res = await fetch(`${base}/models`, {
-      headers: { Accept: 'application/json', ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
-      signal: controller.signal,
-    });
-    const text = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
-    let json;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      throw new Error('返回的不是 JSON（地址可能填错了）');
+    let lastError = '';
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, {
+          headers: { Accept: 'application/json', ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
+          signal: controller.signal,
+        });
+        const text = await res.text();
+        if (!res.ok) {
+          lastError = `HTTP ${res.status}: ${text.slice(0, 200)}`;
+          continue;
+        }
+        let json;
+        try {
+          json = JSON.parse(text);
+        } catch {
+          lastError = `${url} 返回的不是 JSON（地址可能填错了）`;
+          continue;
+        }
+        const list = Array.isArray(json?.data)
+          ? json.data
+          : Array.isArray(json?.models)
+            ? json.models
+            : Array.isArray(json)
+              ? json
+              : [];
+        const ids = list
+          .map((m) => (typeof m === 'string' ? m : m?.id || m?.name || m?.model || ''))
+          .filter(Boolean)
+          .map((s) => String(s));
+        if (!ids.length) {
+          lastError = `${url} 连上了，但没返回任何模型`;
+          continue;
+        }
+        return { ok: true, base, models: [...new Set(ids)].sort() };
+      } catch (err) {
+        lastError = err?.message || String(err);
+      }
     }
-    const list = Array.isArray(json?.data)
-      ? json.data
-      : Array.isArray(json?.models)
-        ? json.models
-        : Array.isArray(json)
-          ? json
-          : [];
-    const ids = list
-      .map((m) => (typeof m === 'string' ? m : m?.id || m?.name || m?.model || ''))
-      .filter(Boolean)
-      .map((s) => String(s));
-    return { ok: true, base, models: [...new Set(ids)].sort() };
-  } catch (err) {
-    return { ok: false, base, models: [], error: err?.message || String(err) };
+    return { ok: false, base, models: [], error: lastError };
   } finally {
     clearTimeout(timer);
   }

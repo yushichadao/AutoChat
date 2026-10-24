@@ -420,8 +420,36 @@ async function handleApi(req, res, url, rootDir) {
   return json(res, 404, { error: 'not found' });
 }
 
+/** 打开配置器界面：--window 用 Edge app 独立窗口（ps1 会先关掉遗留的旧窗口），否则用系统默认浏览器。 */
+async function openUi(url, windowMode) {
+  const { spawn } = await import('node:child_process');
+  if (windowMode && process.platform === 'win32') {
+    const ps = spawn(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        path.join(HERE, 'gui-window.ps1'),
+        '-Url',
+        url,
+      ],
+      { detached: true, stdio: 'ignore', windowsHide: false }
+    );
+    ps.unref();
+    return;
+  }
+  const opener = process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+  const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
+  const child = spawn(opener, args, { detached: true, stdio: 'ignore' });
+  child.unref();
+}
+
 /** 启动图形化配置器。 */
 export async function startGui({ rootDir = ROOT, port = 8788, window = false } = {}) {
+  const dataDir = path.join(rootDir, 'data');
+  const guiStateFile = path.join(dataDir, 'gui.json');
   const token = crypto.randomBytes(16).toString('hex');
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
@@ -464,38 +492,39 @@ export async function startGui({ rootDir = ROOT, port = 8788, window = false } =
     res.end(body);
   });
 
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, '127.0.0.1', resolve);
-  });
+  // 多开保护：端口被占时不再硬崩。若是我们自己的配置器（令牌记录还在），
+  // 复用已有服务、只把窗口重新打开（ps1 会先关掉遗留的旧窗口）；
+  // 若是别的程序占的，明确提示换端口。
+  try {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(port, '127.0.0.1', resolve);
+    });
+  } catch {
+    server.close();
+    let prev = null;
+    try {
+      prev = JSON.parse(fs.readFileSync(guiStateFile, 'utf8'));
+    } catch {
+      /* 没有记录 */
+    }
+    if (prev && prev.port === port && prev.token) {
+      const url = `http://127.0.0.1:${port}/?token=${prev.token}`;
+      console.log(`配置器已在运行，直接打开（不重复起服务）：${url}`);
+      await openUi(url, window);
+      return { url, token: prev.token, server: null, reused: true };
+    }
+    throw new Error(`端口 ${port} 已被其它程序占用。换个端口再启动：autochat gui --port 8789`);
+  }
+
+  // 令牌落到 data/gui.json：重复启动时靠它认出「这是我们自己的配置器」并复用。
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(guiStateFile, `${JSON.stringify({ port, token }, null, 2)}\n`, 'utf8');
 
   const url = `http://127.0.0.1:${port}/?token=${token}`;
   console.log(`AutoChat 配置器已启动：${url}`);
   console.log('关掉这个窗口就等于停掉配置器（不影响正在运行的助手）');
-
-  if (window && process.platform === 'win32') {
-    const { spawn } = await import('node:child_process');
-    const ps = spawn(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        path.join(HERE, 'gui-window.ps1'),
-        '-Url',
-        url,
-      ],
-      { detached: true, stdio: 'ignore', windowsHide: false }
-    );
-    ps.unref();
-  } else {
-    const { spawn } = await import('node:child_process');
-    const opener = process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open';
-    const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
-    const child = spawn(opener, args, { detached: true, stdio: 'ignore' });
-    child.unref();
-  }
+  await openUi(url, window);
 
   return { url, token, server };
 }
