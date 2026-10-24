@@ -1,0 +1,43 @@
+MIT License
+
+Copyright (c) 2026 AutoChat contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+附加声明（不属于 MIT 许可本身，为使用与分发时的提示）
+
+1. 独立第三方项目。本项目与腾讯 / 微信 / QQ 及其运营方无隶属或授权关系，
+   亦非其官方产品；本项目不使用、不修改、不重新分发任何第三方商标或 logo。
+2. 本项目按「现状」提供，不提供任何明示或默示的担保。
+3. 本项目不包含任何其他项目的源码或二进制；与其它实现仅通过公开协议对接。
+4. **禁止用途**：不得将本项目用于冒充他人、批量群发、诈骗、骚扰、
+   非法获取或外传他人个人信息等违法活动。详见 LEGAL.md 第 1.2 节。
+   使用者因违反禁止用途而产生的全部法律责任由使用者自行承担。
+5. 本项目仅提供第三方 hook DLL 的名称、版本适配与获取指引，
+   **不包含也不得打包分发任何第三方 DLL**（含闭源方案）。
+   用户自行下载使用的 DLL 由其作者授权，本项目不作担保。
+6. 本文件不构成法律意见。使用者应自行确保使用行为合法，
+   必要时咨询执业律师。
+
+法律与合规说明见 [LEGAL.md](LEGAL.md)；
+安全漏洞报告见 [SECURITY.md](SECURITY.md)；
+贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。

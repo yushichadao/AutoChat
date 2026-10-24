@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, dev]
+  pull_request:
+    branches: [main, master, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: 安装依赖
+        run: npm install --no-audit --no-fund
+
+      - name: 语法检查
+        run: node --check src/index.js
+
+      - name: 单元与端到端测试
+        run: npm test
+
+  signoff:
+    name: DCO 签署检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 检查 Signed-off-by
+        run: |
+          set -e
+          bad=$(git log --format='%H %s%n%b' -n 20 | grep -c 'Signed-off-by:' || true)
+          total=$(git log --format='%H' -n 20 | wc -l)
+          echo "最近 $total 个提交中，含 Signed-off-by 的有 $bad 个"
+          if [ "$bad" -lt "$total" ]; then
+            echo "::error::提交信息缺少 Signed-off-by 行，详见 CONTRIBUTING.md"
+            exit 1
+          fi
+
+  license-scan:
+    name: 依赖与许可证检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 确认零运行时依赖
+        run: |
+          deps=$(node -e "const p=require('./package.json');console.log(Object.keys(p.dependencies||{}).length)")
+          echo "运行时依赖数量: $deps"
+          if [ "$deps" != "0" ]; then
+            echo "::error::本项目保持零运行时依赖，新增依赖需在 PR 中说明理由"
+            exit 1
+          fi

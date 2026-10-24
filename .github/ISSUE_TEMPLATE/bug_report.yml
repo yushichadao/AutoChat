@@ -1,0 +1,62 @@
+name: 缺陷报告
+description: 报告一个可复现的问题
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **请勿在此报告安全漏洞**，改用私密渠道：见 [SECURITY.md](../blob/main/SECURITY.md)。
+
+        ⚠️ **本项目仅供学习与个人使用。** 请确认你的使用场景合法合规，
+        不得用于冒充他人、批量群发、诈骗等用途（见 [LEGAL.md](../blob/main/LEGAL.md)）。
+  - type: checkboxes
+    attributes:
+      label: 前置确认
+      options:
+        - label: 我已阅读 LEGAL.md，并确认我的使用场景合法合规
+          required: true
+        - label: 我搜索过已有 issue，这不是重复问题
+          required: true
+        - label: 这不是安全漏洞（安全漏洞请走私密渠道）
+          required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 现象
+      description: 实际发生了什么？期望发生什么？
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: |
+        1.
+        2.
+        3.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志
+      description: |
+        把相关日志贴出来（`LOG_LEVEL=debug` 更有用）。
+        **请先脱敏**：移除他人 wxid、群名、聊天内容、手机号等个人信息。
+      render: shell
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      placeholder: "微信 4.1.10.27 / Windows 11 / Node 22 / DLL: aixed WeChat-Hook"
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: 相关配置
+      description: |
+        贴 `.env` 中**相关几项**即可（**务必删掉 API Key**）：
+      render: dotenv

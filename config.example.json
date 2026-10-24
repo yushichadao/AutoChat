@@ -1,0 +1,13 @@
+{
+  "$comment": "复制为 config.json 后修改。环境变量（.env）优先级高于本文件。",
+  "chats": {
+    "123456789@chatroom": {
+      "enabled": true,
+      "groupReply": "always",
+      "personaFile": "./persona-group.txt"
+    },
+    "wxid_friend_example": {
+      "enabled": false
+    }
+  }
+}

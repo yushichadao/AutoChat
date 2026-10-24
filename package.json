@@ -1,0 +1,63 @@
+{
+  "name": "autochat",
+  "version": "0.3.0",
+  "private": false,
+  "type": "module",
+  "description": "AutoChat：微信侧的本地 AI 助手（注入 hook + 本地模型，零运行时依赖）",
+  "license": "MIT",
+  "author": "AutoChat contributors",
+  "keywords": [
+    "wechat",
+    "bot",
+    "ai",
+    "llm",
+    "automation",
+    "openai-compatible",
+    "wechat-hook"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOUR_USERNAME/AutoChat.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/AutoChat/issues"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/AutoChat#readme",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test test/*.test.js",
+    "demo": "node tools/demo.js",
+    "check": "node tools/check-env.js",
+    "doctor": "node src/cli/index.js doctor",
+    "status": "node src/cli/index.js status",
+    "setup": "node src/cli/index.js setup",
+    "model:test": "node src/cli/index.js test",
+    "model:list": "node src/cli/index.js models",
+    "gui": "node src/cli/index.js gui",
+    "pause": "node src/cli/index.js pause",
+    "resume": "node src/cli/index.js resume",
+    "stop": "node src/cli/index.js stop",
+    "uninstall": "node tools/uninstall.js"
+  },
+  "bin": {
+    "autochat": "src/cli/index.js"
+  },
+  "dependencies": {},
+  "files": [
+    "src/",
+    "tools/*.js",
+    "test/",
+    ".env.example",
+    "config.example.json",
+    "README.md",
+    "LEGAL.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md"
+  ]
+}
