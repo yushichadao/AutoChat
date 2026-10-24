@@ -215,6 +215,7 @@ export async function buildState(rootDir) {
         masterSwitch: cfg.ai.masterSwitch,
         baseUrl: cfg.ai.baseUrl,
         model: cfg.ai.model,
+        personaFile: cfg.ai.personaFile,
         groupReply: cfg.ai.groupReply,
         contextTurns: cfg.ai.contextTurns,
         contextTtlMs: cfg.ai.contextTtlMs,
@@ -359,6 +360,22 @@ async function handleApi(req, res, url, rootDir) {
     for (const id of body.remove || []) delete chats[id];
     writeChats(rootDir, chats);
     return json(res, 200, { ok: true, chats, state: await buildState(rootDir) });
+  }
+
+  // 文件上传到工作区 data/：GUI 用原生文件选择器选文件后调这里，避免手填路径。
+  // 防穿越：文件名只取 basename，禁止任何路径分隔与 . 开头的隐藏文件。
+  if (p === '/api/file/upload' && req.method === 'POST') {
+    const body = await readBody(req);
+    const name = String(body.name || '').trim();
+    const content = String(body.content || '');
+    const safe = path.basename(name).replace(/[\/\\]/g, '');
+    if (!safe || safe !== name || safe === '.' || safe === '..' || safe.startsWith('.')) {
+      return json(res, 400, { error: '非法文件名' });
+    }
+    const dir = path.join(rootDir, 'data');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, safe), content, 'utf8');
+    return json(res, 200, { ok: true, path: `./data/${safe}` });
   }
 
   // 关键字搜索联系人（群名 / 昵称 / 备注 / 微信号），从微信通讯录库模糊匹配

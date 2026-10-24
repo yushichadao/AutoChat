@@ -38,25 +38,36 @@ export function candidateDbs(base = 'message_0.db', count = 8) {
 const escape = (s) => String(s).replace(/'/g, "''");
 
 /**
- * 轮询某个会话的新消息。
+ * 轻量批次：只取 local_id（主键）。
  *
- * · 只取文本消息（local_type = 1），图片/语音等交给别的通道
- * · JOIN Name2Id 把 real_sender_id 换成真实 wxid（群里每个人一个 rowid）
- * · ORDER BY local_id DESC 取最近若干条，增量靠调用方的水位判断
+ * 重要背景（微信 hook /QueryDB/execute 的坑）：
+ * 当结果集里「任一行的 message_content 无法被序列化」时，hook 会把整条查询
+ * 返回空（status=0、data=[]，不报错）。而「SELECT message_content + WHERE
+ * local_type=1」会命中全群文本消息，只要有一条坏内容（某些 BLOB / zstd）整批
+ * 就落空，机器人从而永远收不到消息 → 表现为「AI 无反应」。
+ * 因此批次只取主键，正文用 buildRowSql 逐条按 local_id 取。
  */
-export function buildPollSql(chatId, { limit = 30, db = '' } = {}) {
+export function buildPollSql(chatId, limit = 30) {
   const table = chatTable(chatId);
-  const room = /@chatroom$/i.test(chatId) ? escape(chatId) : '';
+  const lim = Number(limit) || 30;
+  return `SELECT local_id FROM ${table} WHERE local_type = 1 ORDER BY local_id DESC LIMIT ${lim}`;
+}
+
+/**
+ * 单行明细：逐条按 local_id 取完整一行（含 message_content / 发送者）。
+ * 单行查询在 hook 下稳定；即便某条内容损坏，也只有那一条失败，不会拖垮整批。
+ * 发送者 wxid 用 resolveSenders 单独解析（见 receiver.js），这里只带回 real_sender_id。
+ */
+export function buildRowSql(chatId, localId) {
+  const table = chatTable(chatId);
+  const id = Number(localId);
+  if (!Number.isFinite(id)) return null;
   return (
-    `SELECT m.local_id AS msgid,` +
-    ` COALESCE(n.user_name, '') AS wxid,` +
-    ` m.message_content AS content,` +
-    ` m.create_time AS createTime,` +
-    ` '${room}' AS roomid` +
-    ` FROM ${table} m` +
-    ` LEFT JOIN Name2Id n ON n.rowid = m.real_sender_id` +
-    ` WHERE m.local_type = 1` +
-    ` ORDER BY m.local_id DESC LIMIT ${Number(limit) || 30}`
+    `SELECT local_id AS msgid,` +
+    ` real_sender_id AS rid,` +
+    ` create_time AS createTime,` +
+    ` message_content AS content` +
+    ` FROM ${table} WHERE local_id = ${id}`
   );
 }
 
@@ -70,7 +81,7 @@ export function buildPollPlan(chatIds, { limit = 30, dbBase = 'message_0.db' } =
     const chatId = String(id || '').trim();
     if (!chatId) continue;
     const db = chatDb(chatId, dbBase);
-    out.push({ chatId, db, table: chatTable(chatId), sql: buildPollSql(chatId, { limit, db }) });
+    out.push({ chatId, db, table: chatTable(chatId), limit, sql: buildPollSql(chatId, limit) });
   }
   return out;
 }

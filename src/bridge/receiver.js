@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { normalizeMessage, normalizeDbRow, dedupeKey } from '../protocol/normalize.js';
-import { candidateDbs } from './poll-sql.js';
+import { candidateDbs, buildPollSql, buildRowSql } from './poll-sql.js';
 
 /**
  * 收消息的两条腿：
@@ -224,19 +224,48 @@ export class Receiver extends EventEmitter {
       this.polling = true;
       try {
         for (const p of plan) {
-          const rows = await this.queryPlan(p);
-          if (!rows) continue;
+          // 1) 轻量批次：只拿 local_id（hook 对「多列 + message_content + WHERE」查询会返回空）
+          const idRows = await this.queryInAnyDb(buildPollSql(p.chatId, p.limit || 30), p.db);
+          if (!idRows.length) continue;
+          const mark = this.watermark.get(p.chatId) || 0;
+          const newIds = idRows
+            .map((r) => Number(r.local_id ?? r.msgid))
+            .filter((id) => Number.isFinite(id) && id > mark)
+            .sort((a, b) => a - b);
+          if (!newIds.length) continue;
+
+          // 2) 逐条按 local_id 取完整单行（正文 / 发送者在此获取；单行查询在 hook 下稳定）
+          const rows = [];
+          const rids = new Set();
+          for (const id of newIds) {
+            const rowSql = buildRowSql(p.chatId, id);
+            if (!rowSql) continue;
+            const rr = await this.queryInAnyDb(rowSql, p.db);
+            if (rr.length) {
+              rows.push(rr[0]);
+              if (rr[0].rid != null) rids.add(String(rr[0].rid));
+            }
+          }
+          if (!rows.length) continue;
+
+          // 3) 批量把 real_sender_id 解析成 wxid（Name2Id 单独查，避免 JOIN 触发 hook 空返回）
+          const nameMap = await this.resolveSenders([...rids]);
+
           const selfId = this.selfId;
           const selfMode = this.selfMode;
-          // 先把昵称补上（群名 + 发言人），模型才知道在跟谁说话
           if (this.contacts) {
             const ids = new Set();
-            for (const r of rows) if (r?.wxid) ids.add(String(r.wxid));
+            for (const r of rows) {
+              const w = nameMap.get(String(r.rid));
+              if (w) ids.add(String(w));
+            }
             if (p.chatId) ids.add(p.chatId);
             await this.contacts.lookup([...ids]);
           }
-          for (const row of rows) {
-            const msg = normalizeDbRow(row, { selfId, selfMode });
+          for (const r of rows) {
+            r.roomid = p.chatId; // 在 JS 里补 roomid，避免 SQL 常量触发 hook 空返回
+            r.wxid = nameMap.get(String(r.rid)) || '';
+            const msg = normalizeDbRow(r, { selfId, selfMode });
             if (!msg) continue;
             const senderName = this.contacts?.nameOf(msg.senderId);
             if (senderName) msg.senderName = senderName;
@@ -263,44 +292,63 @@ export class Receiver extends EventEmitter {
   /**
    * 首次接管一个会话：把水位定到当前最大消息 id。
    * 没有这一步，重启后会把最近几十条旧消息当成新消息逐条回复。
+   * 逐库回退：表不一定在 message_0.db，查不到就试下一个候选库。
    */
   async initWatermark(plan) {
     for (const p of plan) {
       if (!p.chatId || !p.table || this.watermark.has(p.chatId)) continue;
-      try {
-        const res = await this.hook.queryDb(`SELECT MAX(local_id) AS msgid FROM ${p.table}`, p.db);
-        const rows = Array.isArray(res?.data) ? res.data : [];
-        const max = Number(rows?.[0]?.msgid || 0);
-        if (Number.isFinite(max) && max > 0) {
-          this.watermark.set(p.chatId, max);
-          this.wmDirty = true;
-          this.log.info(`会话 ${p.chatId} 水位初始化为 ${max}（只处理之后的新消息）`);
+      const dbs = [p.db, ...candidateDbs(p.db).filter((d) => d !== p.db)];
+      for (const db of dbs) {
+        try {
+          const res = await this.hook.queryDb(`SELECT MAX(local_id) AS msgid FROM ${p.table}`, db);
+          const rows = Array.isArray(res?.data) ? res.data : [];
+          const max = Number(rows?.[0]?.msgid || 0);
+          if (Number.isFinite(max) && max > 0) {
+            this.watermark.set(p.chatId, max);
+            this.wmDirty = true;
+            this.log.info(`会话 ${p.chatId} 水位初始化为 ${max}（只处理之后的新消息）`);
+            break;
+          }
+        } catch (err) {
+          this.log.debug(`水位初始化失败 ${p.chatId} ${db}: ${err.message}`);
         }
-      } catch (err) {
-        this.log.debug(`水位初始化失败 ${p.chatId}: ${err.message}`);
       }
     }
     this.saveWatermark();
   }
 
   /**
-   * 执行一条会话的轮询 SQL。
-   * 微信把消息分表放在 message_0.db / message_1.db …，
-   * 表不一定在第一个库里，所以「查不到」就换下一个库再试。
+   * 在候选库里逐个执行同一条 SQL，返回第一个「有数据」的库的结果。
+   * 微信把消息分表放在 message_0.db / message_1.db …，表不一定在第一个库，
+   * 所以「查不到」就换下一个库再试。
+   * @returns {Promise<any[]>}
    */
-  async queryPlan(p) {
-    const dbs = [p.db, ...candidateDbs(p.db).filter((d) => d !== p.db)];
+  async queryInAnyDb(sql, baseDb) {
+    if (!sql) return [];
+    const dbs = [baseDb, ...candidateDbs(baseDb).filter((d) => d !== baseDb)];
+    let lastErr;
     for (const db of dbs) {
       try {
-        const res = await this.hook.queryDb(p.sql, db);
+        const res = await this.hook.queryDb(sql, db);
         const arr = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : null;
         if (arr && arr.length) return arr;
-        if (arr) return arr;
       } catch (err) {
-        this.log.debug(`轮询 ${p.chatId || db} 失败: ${err.message}`);
+        lastErr = err;
       }
     }
-    return null;
+    if (lastErr) this.log.debug(`queryInAnyDb 全部失败: ${lastErr.message}`);
+    return [];
+  }
+
+  /** 批量把 Name2Id.rowid 解析成真实 wxid（单表查询，hook 下稳定）。 */
+  async resolveSenders(rids) {
+    const map = new Map();
+    const clean = [...new Set(rids.filter((x) => x != null && x !== '' && x !== '0'))];
+    if (!clean.length) return map;
+    const sql = `SELECT rowid, user_name FROM Name2Id WHERE rowid IN (${clean.join(',')})`;
+    const rows = await this.queryInAnyDb(sql, 'message_0.db');
+    for (const r of rows) map.set(String(r.rowid), r.user_name);
+    return map;
   }
 
   /**

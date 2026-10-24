@@ -66,7 +66,7 @@ label.chk{flex-direction:row;align-items:center;gap:7px;color:var(--fg)}
 
 .mono{font:12px/1.6 ui-monospace,Consolas,monospace;color:var(--dim);white-space:pre-wrap;word-break:break-word;background:var(--soft);border:1px solid var(--line);border-radius:7px;padding:10px;margin:10px 0 0;max-height:260px;overflow:auto}
 
-.steps{margin:0 0 8px;padding-left:20px;color:var(--dim)}.steps b{color:var(--fg)}
+.steps{margin:0 0 12px;padding-left:20px;color:var(--dim)}.steps b{color:var(--fg)}
 code{background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:12px;word-break:break-word}
 .check{display:flex;gap:8px;align-items:flex-start;padding:5px 0;color:var(--dim)}
 .check .lv{width:18px;text-align:center;flex:none}
@@ -108,6 +108,11 @@ details.adv[open]>summary::before{content:"▾ "}
 details.adv .adv-body{padding:4px 0 14px}
 .keyhint{font-size:12px;color:var(--dim);margin-top:4px;word-break:break-word}
 
+/* ── 文件路径：文本框 + 原生文件选择器 ── */
+.filepick{display:flex;gap:8px;align-items:center}
+.filepick input[type=text]{flex:1;width:auto}
+.filepick .btn{flex:none;white-space:nowrap}
+
 /* ── 联系人搜索结果 ───────────────────────────────────────────── */
 .search-results{margin-top:10px;display:flex;flex-direction:column;gap:7px}
 .search-results .hint{margin:0}
@@ -140,3 +145,25 @@ details.adv .adv-body{padding:4px 0 14px}
   .badges{margin-left:0;width:100%}
   .topactions{width:100%}
 }
+
+/* ── 卡片分组与必选标签 ── */
+.grp{margin-bottom:4px}
+.grp-title{font-size:12px;font-weight:700;color:var(--dim);letter-spacing:.4px;margin:16px 2px 12px;padding-left:8px;border-left:3px solid var(--acc)}
+.card-tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:5px;margin-left:8px;vertical-align:middle}
+.tag-must{color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok-line)}
+.tag-rec{color:var(--acc);background:var(--acc-bg);border:1px solid var(--acc-line)}
+.tag-opt{color:var(--dim);background:var(--soft);border:1px solid var(--line)}
+/* 醒目引导：先启动模型 */
+.guide-warn{margin:0 0 12px;padding:11px 14px;border-radius:9px;background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--fg);font-size:13px;line-height:1.6}
+/* 自动回复三态一览 */
+.status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:4px 0 10px}
+.status-item{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--soft);display:flex;flex-direction:column;gap:3px}
+.status-item b{font-size:12px;color:var(--dim)}
+.status-item span{font-size:13px;font-weight:600}
+.status-item.ok span{color:var(--ok)}
+.status-item.bad span{color:var(--bad)}
+
+/* ── 间距补漏：普通操作行（.row）默认无上边距，会紧贴上方表格 / 勾选行 ── */
+.tbl + .row:not(.end){margin-top:12px}
+.row.wrap + .row{margin-top:14px}
+.steps li{margin:4px 0}

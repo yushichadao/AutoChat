@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { decodeDbContent } from '../src/protocol/db-decode.js';
-import { chatTable, buildPollSql, buildPollPlan } from '../src/bridge/poll-sql.js';
+import { chatTable, buildPollSql, buildRowSql, buildPollPlan } from '../src/bridge/poll-sql.js';
 import { SelfFilter } from '../src/bridge/self-filter.js';
 import { MasterSwitch, PidFile, shouldYieldToExisting } from '../src/bridge/switch.js';
 import { Memory } from '../src/ai/memory.js';
@@ -39,16 +39,23 @@ test('会话分表名 = Msg_ + md5(会话id)', () => {
   assert.equal(chatTable('59074288439@chatroom'), 'Msg_796a1139482a98c39c08ec15b122cf9d');
 });
 
-test('轮询 SQL 带齐约定别名，并只取文本消息', () => {
-  const sql = buildPollSql('123@chatroom', { limit: 20 });
-  assert.match(sql, /AS msgid/);
-  assert.match(sql, /AS wxid/);
-  assert.match(sql, /AS content/);
-  assert.match(sql, /AS createTime/);
-  assert.match(sql, /AS roomid/);
-  assert.match(sql, /local_type = 1/);
-  assert.match(sql, /LIMIT 20/);
-  assert.match(sql, /Name2Id/);
+test('轮询批次只取 local_id；单行明细取完整内容', () => {
+  // 批次只取主键：hook 对「多列 + message_content + WHERE local_type=1」查询会返回空，
+  // 因此批次严禁选 message_content / JOIN，正文靠 buildRowSql 逐条取。
+  const batch = buildPollSql('123@chatroom', 20);
+  assert.match(batch, /SELECT local_id FROM/);
+  assert.match(batch, /local_type = 1/);
+  assert.match(batch, /LIMIT 20/);
+  assert.ok(!/message_content/.test(batch), '批次不能选 message_content');
+  assert.ok(!/Name2Id/.test(batch), '批次不能 JOIN');
+
+  const row = buildRowSql('123@chatroom', 7);
+  assert.ok(row, '合法 id 应有 SQL');
+  assert.match(row, /AS msgid/);
+  assert.match(row, /AS rid/);
+  assert.match(row, /AS content/);
+  assert.match(row, /WHERE local_id = 7/);
+  assert.equal(buildRowSql('123@chatroom', NaN), null, '非法 id 应返回 null');
 });
 
 test('轮询计划逐个会话生成', () => {

@@ -11,7 +11,7 @@
  */
 import { loadConfig } from '../src/config.js';
 import { HookClient } from '../src/bridge/hook-client.js';
-import { buildPollPlan } from '../src/bridge/poll-sql.js';
+import { buildPollPlan, buildPollSql, buildRowSql, candidateDbs } from '../src/bridge/poll-sql.js';
 import { normalizeDbRow } from '../src/protocol/normalize.js';
 import { decodeDbContent } from '../src/protocol/db-decode.js';
 
@@ -46,16 +46,16 @@ let bad = 0;
 for (const p of plan) {
   console.log(`── ${p.chatId}  表 ${p.table}  库 ${p.db}`);
 
-  let rows = null;
-  for (const db of [p.db, ...Array.from({ length: 8 }, (_, i) => `message_${i}.db`)].filter(
-    (d, i, a) => a.indexOf(d) === i
-  )) {
+  // 1) 轻量批次：只取 local_id（hook 对「多列 + message_content + WHERE」查询会返回空）
+  const batch = buildPollSql(p.chatId, 30);
+  let ids = null;
+  for (const db of candidateDbs(p.db)) {
     try {
-      const res = await hook.queryDb(p.sql, db);
+      const res = await hook.queryDb(batch, db);
       const arr = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : null;
       if (arr) {
-        rows = arr;
-        console.log(`   库 ${db} 命中 ${arr.length} 行`);
+        ids = arr;
+        console.log(`   库 ${db} 命中 ${arr.length} 条 local_id`);
         break;
       }
     } catch (err) {
@@ -63,17 +63,47 @@ for (const p of plan) {
     }
   }
 
-  if (!rows) {
+  if (!ids) {
     console.log('   ✗ 所有库都查不到这张表 —— 会话 id 是否正确？该会话在这台电脑上登录过吗？');
     bad += 1;
     continue;
   }
+
+  // 2) 逐条按 local_id 取完整明细（正文 / 发送者）
+  const recent = ids
+    .map((r) => Number(r.local_id ?? r.msgid))
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => b - a)
+    .slice(0, limit);
+  const rows = [];
+  for (const id of recent) {
+    const rowSql = buildRowSql(p.chatId, id);
+    if (!rowSql) continue;
+    let hit = null;
+    for (const db of candidateDbs(p.db)) {
+      try {
+        const res = await hook.queryDb(rowSql, db);
+        const arr = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : null;
+        if (arr && arr.length) {
+          hit = arr[0];
+          break;
+        }
+      } catch {
+        /* 换下一个库 */
+      }
+    }
+    if (hit) {
+      hit.roomid = p.chatId; // 与运行时一致：roomid 在 JS 里补，避免 SQL 常量触发 hook 空返回
+      rows.push(hit);
+    }
+  }
+
   if (!rows.length) {
-    console.log('   · 表在，但没有文本消息');
+    console.log('   · 表在，但最近没有可读取的文本消息');
     continue;
   }
 
-  for (const row of rows.slice(0, limit)) {
+  for (const row of rows) {
     const msg = normalizeDbRow(row, { selfId: cfg.wechat.selfId });
     if (!msg) {
       console.log(`   · 归一化失败: ${JSON.stringify(row).slice(0, 120)}`);
@@ -88,7 +118,7 @@ for (const p of plan) {
   }
 
   const raw = rows[0];
-  const rawContent = raw?.content ?? raw?.message_content ?? '';
+  const rawContent = raw?.content ?? '';
   if (typeof rawContent === 'string' && /^[0-9a-f]+$/i.test(rawContent.trim())) {
     console.log(`   提示: 库里 content 是十六进制，解码后 = ${JSON.stringify(decodeDbContent(rawContent).slice(0, 60))}`);
   }

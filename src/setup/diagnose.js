@@ -13,7 +13,7 @@ import { listModels, explainError } from '../ai/probe.js';
  * 如果你就用这个号在群里提问，那「提问的人」和「机器人所在的账号」是同一个，
  * 自问自答防护会把你的话全当噪音丢掉 —— 表现就是「机器人装死」。
  *
- * 正解是双账号：手机用主号，电脑登录另一个号（专门跑机器人），
+ * 正解是用小号：手机用主号，电脑登录另一个号（专门跑机器人），
  * 这样主号在群里说话、机器人用另一个号回应，两者 wxid 不同，判定才成立。
  */
 
@@ -21,13 +21,13 @@ export const ok = (name, detail = '') => ({ level: 'ok', name, detail });
 export const warn = (name, detail = '') => ({ level: 'warn', name, detail });
 export const bad = (name, detail = '') => ({ level: 'bad', name, detail });
 
-/** 检查监听会话里的消息是不是全都来自本机账号（双账号方案的判据）。 */
+/** 检查监听会话里的消息是不是全都来自本机账号（小号方案的判据）。 */
 export async function checkAccountSeparation({ cfg, hook, limit = 20 } = {}) {
   const chats = cfg.wechat.pollChats;
-  if (!chats.length) return warn('双账号检查', '没有配置 WX_POLL_CHATS，跳过');
+  if (!chats.length) return warn('小号检查', '没有配置 WX_POLL_CHATS，跳过');
 
   const selfId = cfg.wechat.selfId;
-  if (!selfId) return bad('双账号检查', '未配置 WX_SELF_ID，无法判断消息来源');
+  if (!selfId) return bad('小号检查', '未配置 WX_SELF_ID，无法判断消息来源');
 
   const plan = buildPollPlan(chats, { limit, dbBase: cfg.wechat.pollDb });
   const senders = new Map();
@@ -56,13 +56,13 @@ export async function checkAccountSeparation({ cfg, hook, limit = 20 } = {}) {
   const others = [...senders.entries()].filter(([id]) => id !== selfId);
   if (!others.length) {
     return warn(
-      '双账号检查',
+      '小号检查',
       `最近的发言全部来自本机账号 ${selfId} —— 群里的提问者就是你本人，` +
-        '机器人分不清「你发的」和「它发的」。建议按双账号方案：手机用主号，电脑登录另一个号专门跑机器人'
+        '机器人分不清「你发的」和「它发的」。建议用小号方案：手机用主号，电脑登录另一个号专门跑机器人'
     );
   }
   return ok(
-    '双账号检查',
+    '小号检查',
     `群里有其他账号发言（${others.map(([id, n]) => `${id}×${n}`).join('、')}）`
   );
 }
@@ -153,7 +153,7 @@ export async function diagnose({ rootDir = ROOT } = {}) {
           '自消息判定',
           '当前是 id 模式（按机器人发过的消息 id 精确过滤）—— 电脑号与手机号同号时必须这样'
         )
-      : ok('自消息判定', 'sender 模式（按 wxid 过滤），适合双账号方案')
+      : ok('自消息判定', 'sender 模式（按 wxid 过滤），适合小号方案')
   );
 
   const hook = new HookClient({

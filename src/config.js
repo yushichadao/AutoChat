@@ -121,7 +121,7 @@ export function loadConfig({ env = process.env, rootDir = ROOT } = {}) {
        *   sender —— 按本机 wxid 过滤（默认；适合电脑上登录的号与群里说话的人不是同一个）
        *   id     —— 按「机器人发过的消息 id」精确过滤（电脑微信 = 手机号同号时必须用这个，
        *             否则提问的人就是本机账号，会被全部丢掉）
-       * 双账号方案（手机主号 + 电脑小号）用 sender 就够，且最稳。
+       * 小号方案（手机主号 + 电脑小号）用 sender 就够，且最稳。
        */
       selfMode: str(v.WX_SELF_MODE, 'sender'),
       /** 轮询时是否强制排除自己的消息（需要 selfId 已知才有效） */

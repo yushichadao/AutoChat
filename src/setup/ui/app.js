@@ -2,6 +2,8 @@
 const $ = (s, r = document) => r.querySelector(s);
 const token = new URLSearchParams(location.search).get('token') || '';
 let state = null;
+/* 模型连接真实状态：未探测/已连上/未连上，徽标据此显示，避免“已启用”却连不上的错误状态 */
+let modelStatus = { probed: false, state: 'untested', model: '' };
 
 /* 服务商预设表（启动时拉一次） */
 let providers = { groups: [] };
@@ -40,6 +42,11 @@ async function refresh() {
     const hit = all.find((p) => p.baseUrl && a.baseUrl && p.baseUrl === a.baseUrl);
     form.ai.providerId = hit ? hit.id : 'custom';
   }
+  // 模型连接徽标：仅当还没真正测过时，按配置开关给出“未测试/未启用”初始态
+  if (!modelStatus.probed) {
+    modelStatus.state = a.enabled ? 'untested' : 'disabled';
+    modelStatus.model = '';
+  }
   render();
 }
 
@@ -50,8 +57,10 @@ async function loadProviders() {
   discovered = d.found || [];
 }
 
-function card(title, inner) {
-  return `<section class="card"><h2>${title}</h2>${inner}</section>`;
+function card(title, inner, tag = '') {
+  const map = { '必须': 'must', '推荐': 'rec', '可选': 'opt' };
+  const tagHtml = tag ? `<span class="card-tag tag-${map[tag] || ''}">${esc(tag)}</span>` : '';
+  return `<section class="card"><h2>${title}${tagHtml}</h2>${inner}</section>`;
 }
 
 function field(label, value, id, type = 'text', ph = '', bind = '', listId = '') {
@@ -62,38 +71,52 @@ function numField(label, value, id, bind = '') {
   return `<label>${label}<input id="${id}" type="number" value="${esc(value ?? 0)}"${bind ? ` data-bind="${esc(bind)}"` : ''}></label>`;
 }
 
+/** 文件路径输入 + 「浏览…」原生文件选择器：选好后由 bind() 里的上传逻辑存到工作区。 */
+function filePickerRow(label, id, value, bind = '') {
+  return `<label>${label}
+    <div class="filepick">
+      <input id="${id}" type="text" value="${esc(value ?? '')}" placeholder="./data/persona.md" data-bind="${esc(bind)}" autocomplete="off">
+      <button type="button" class="btn" data-filebtn="${esc(id)}">浏览…</button>
+      <input type="file" id="${id}File" accept=".md,.txt,.json" hidden>
+    </div></label>`;
+}
+
 function gateCard() {
   const paused = state.gate.paused;
+  const hardOff = state.config.ai.masterSwitch;
   return card(
-    '总闸（随时拉下）',
-    `<p class="hint">自动化最怕停不下来。总闸一拉，<b>立刻停止自动回复</b>（仍接收消息、仍记日志），不用重启、不用进命令行。恢复时点一下即可。</p>
-     <div class="row">
-       <button class="btn ${paused ? 'primary' : 'danger'} big" id="btnGateToggle">${paused ? '恢复自动回复' : '暂停自动回复'}</button>
+    '自动回复控制',
+    `<p class="hint">机器人要真正回消息，必须同时满足：① 服务在跑 ② 没被暂停 ③ 没硬关总开关。任一关掉都不回。</p>
+     <div class="status-grid">
+       <div class="status-item ${state.running ? 'ok' : 'bad'}"><b>服务</b><span>${state.running ? '运行中' : '未运行'}</span></div>
+       <div class="status-item ${paused ? 'bad' : 'ok'}"><b>自动回复</b><span>${paused ? '已暂停（顶栏可恢复）' : '运行中'}</span></div>
+       <div class="status-item ${hardOff ? 'bad' : 'ok'}"><b>硬总开关</b><span>${hardOff ? '已关（配置层，重启也不回）' : '开'}</span></div>
      </div>
-     <pre class="mono">${paused ? '状态：已暂停\n' + esc(state.gate.reason) : '状态：总闸打开（正常回复中）'}</pre>`
+     <p class="keyhint">暂停 / 恢复自动回复用顶栏的「暂停自动回复」按钮（运行层，不用重启）。硬总开关在下方 AI 卡片里（配置层）。</p>`,
+    '可选'
   );
 }
 
 function acctCard() {
   const w = state.config.wechat;
   return card(
-    '双账号准备（重要）',
+    '小号准备（重要）',
     `<p class="hint">电脑微信必须扫码登录，所以<b>电脑上登录的号 == 手机上的号</b>。如果就用这个号在群里提问，机器人分不清「你发的」和「它发的」，会把你的话当噪音丢掉 —— 表现就是「机器人装死」。</p>
      <ol class="steps">
        <li>手机上准备<b>另一个</b>微信号（小号即可，别用主号）</li>
        <li>电脑微信退出登录 → 扫码登录<b>这个小号</b>（主号在手机上照常用，不会被挤占）</li>
-       <li>把小号拉进目标群；跑 <code>autochat doctor</code>，看「双账号检查」是否变绿</li>
+       <li>把小号拉进目标群；跑 <code>autochat doctor</code>，看「小号检查」是否变绿</li>
        <li>回到本页把「自消息判定」改成 <code>sender</code>（最稳），或保留 <code>id</code></li>
      </ol>
      <div class="grid">
        <label>自消息判定<select id="selfMode">
-         <option value="sender"${w.selfMode === 'sender' ? ' selected' : ''}>sender（按 wxid 过滤，双账号用）</option>
+         <option value="sender"${w.selfMode === 'sender' ? ' selected' : ''}>sender（按 wxid 过滤，小号用）</option>
          <option value="id"${w.selfMode === 'id' ? ' selected' : ''}>id（按已发消息 id 过滤，同号用）</option>
        </select></label>
        ${field('本机 wxid', w.selfId, 'selfId', 'text', 'wxid_xxx')}
        ${field('监听会话', w.pollChats.join(','), 'pollChats', 'text', '123456@chatroom')}
      </div>
-     <div class="row end"><button class="btn primary" id="btnSaveWechat">保存会话配置</button></div>`
+     <div class="row end"><button class="btn primary" id="btnSaveWechat">保存会话配置</button></div>`, '必须'
   );
 }
 
@@ -103,6 +126,9 @@ function aiCard() {
   const p = currentProvider();
   const groups = providers.groups || [];
   const keySet = Boolean(state.env.AI_API_KEY);
+
+  // 醒目引导：AutoChat 不启动模型，必须先让自己电脑上的模型服务跑起来
+  const bootWarn = `<div class="guide-warn">⚠ <b>先让自己电脑上的模型服务跑起来</b>：AutoChat 不负责启动模型。本地模型（Ollama / LM Studio 等）请先在系统里把它跑起来并监听端口（11434 / 1234 等），再点「测试一下」。点「本机发现」能自动找到已经启动的服务。</div>`;
 
   const step1 = `
     <div class="wiz-step">
@@ -165,7 +191,7 @@ function aiCard() {
       <h3><span class="n">3</span>要不要让它回消息？</h3>
       <div class="grid">
         <label class="chk"><input type="checkbox" id="aiEnabled"${a.enabled ? ' checked' : ''}>启用 AI 回复（关掉就只收消息不回复）</label>
-        <label class="chk"><input type="checkbox" id="aiMaster"${a.masterSwitch ? ' checked' : ''}>总闸（配置层，关掉就绝不发消息）</label>
+        <label class="chk"><input type="checkbox" id="aiMaster"${a.masterSwitch ? ' checked' : ''}>硬总开关（配置层：关掉后重启服务也绝不自动回复）</label>
       </div>
     </div>`;
 
@@ -187,7 +213,7 @@ function aiCard() {
           ${numField('回答长度上限(字)', f.maxTokens ?? a.maxTokens, 'aiMaxTokens', 'ai.maxTokens')}
           ${numField('发挥程度 0~2', f.temperature ?? a.temperature, 'aiTemperature', 'ai.temperature')}
           ${numField('等待模型回答的超时(毫秒)', f.timeoutMs ?? a.timeoutMs, 'aiTimeout', 'ai.timeoutMs')}
-          ${field('人设文件（可选）', f.personaFile ?? '', 'aiPersonaFile', 'text', './data/persona.md', 'ai.personaFile')}
+          ${filePickerRow('人设文件（可选）', 'aiPersonaFile', f.personaFile ?? '', 'ai.personaFile')}
         </div>
       </div>
     </details>`;
@@ -195,9 +221,11 @@ function aiCard() {
   return card(
     'AI 助手（接模型）',
     `<p class="hint">三步：① 选模型从哪来 → ② 填地址/密钥 → ③ 点「测试一下」确认能用，再保存。</p>
+     ${bootWarn}
      ${step1}${step2}${step3}${adv}
      <div class="row end"><button class="btn primary big" id="btnSaveAi">保存 AI 配置</button></div>
-     <p class="keyhint">保存后要重启服务才生效（顶栏「停止服务」→ 再「启动服务」）。</p>`
+     <p class="keyhint">保存后要重启服务才生效（顶栏「停止服务」→ 再「启动服务」）。</p>`,
+    '必须'
   );
 }
 
@@ -291,7 +319,7 @@ function ctxCard() {
      <div class="row end"><button class="btn primary" id="btnSaveCtx">保存记忆设置</button></div>
      <table class="tbl"><thead><tr><th>会话</th><th>条数</th><th>最后更新</th><th>最近内容</th><th></th></tr></thead>
        <tbody>${rows || '<tr><td colspan="5">还没有上下文记录</td></tr>'}</tbody></table>
-     <div class="row end"><button class="btn danger ghost" id="btnClearAllCtx">清空全部上下文</button></div>`
+     <div class="row end"><button class="btn danger ghost" id="btnClearAllCtx">清空全部上下文</button></div>`, '推荐'
   );
 }
 
@@ -320,7 +348,7 @@ function chatsCard() {
        <button class="btn ghost" id="btnAddChat">按 wxid 加入</button>
        <button class="btn primary" id="btnSearchContacts">搜索联系人</button>
        <button class="btn primary" id="btnSaveChats">保存会话表</button></div>
-     <div id="chatSearchResults" class="search-results"></div>`
+     <div id="chatSearchResults" class="search-results"></div>`, '推荐'
   );
 }
 
@@ -345,7 +373,7 @@ function installCard() {
       <button class="btn danger ghost" id="btnUninstall">卸载（保留配置）</button>
       <button class="btn danger ghost" id="btnUninstallPurge">彻底卸载（删配置与数据）</button>
      </div>
-     ${installLogText ? `<pre class="mono" id="installLog">${esc(installLogText)}</pre>` : ''}`
+     ${installLogText ? `<pre class="mono" id="installLog">${esc(installLogText)}</pre>` : ''}`, '可选'
   );
 }
 
@@ -365,25 +393,31 @@ async function renderDiag() {
 function renderBadges(s) {
   $('#badgeService').textContent = s.running ? `服务运行中 (pid ${s.pid})` : '服务未运行';
   $('#badgeService').className = 'badge ' + (s.running ? 'on' : 'off');
-  $('#badgeGate').textContent = s.gate.paused ? '总闸已暂停' : '总闸打开';
+  $('#badgeGate').textContent = s.gate.paused ? '自动回复已暂停' : '自动回复运行中';
   $('#badgeGate').className = 'badge ' + (s.gate.paused ? 'warn' : 'on');
-  $('#badgeAi').textContent = s.config.ai.enabled ? 'AI 已启用' : 'AI 未启用';
-  $('#badgeAi').className = 'badge ' + (s.config.ai.enabled ? 'on' : 'off');
+  // AI 徽标反映“真实连接状态”，而不是只看配置开关 —— 避免“已启用”却连不上的错误状态
+  let aiText, aiCls;
+  if (modelStatus.state === 'ok') { aiText = ('已连模型：' + (modelStatus.model || '')).trim(); aiCls = 'on'; }
+  else if (modelStatus.state === 'fail') { aiText = '模型未连上'; aiCls = 'off'; }
+  else if (modelStatus.state === 'disabled') { aiText = 'AI 未启用'; aiCls = 'off'; }
+  else { aiText = 'AI 未测试'; aiCls = 'warn'; }
+  $('#badgeAi').textContent = aiText;
+  $('#badgeAi').className = 'badge ' + aiCls;
   $('#btnToggleGate').textContent = s.gate.paused ? '恢复自动回复' : '暂停自动回复';
   $('#btnToggleService').textContent = s.running ? '停止服务' : '启动服务';
+}
+
+function group(title, cards) {
+  return `<div class="grp"><div class="grp-title">${esc(title)}</div>${cards.join('')}</div>`;
 }
 
 function render() {
   renderBadges(state);
 
   $('#main').innerHTML = [
-    gateCard(),
-    acctCard(),
-    aiCard(),
-    ctxCard(),
-    chatsCard(),
-    installCard(),
-    card('环境体检', '<div id="diagBody"></div>'),
+    group('核心 · 配好才能跑', [aiCard(), acctCard()]),
+    group('进阶 · 更好用', [ctxCard(), chatsCard()]),
+    group('系统 · 高级', [gateCard(), installCard(), card('环境体检', '<div id="diagBody"></div>', '可选')]),
   ].join('');
   renderDiag();
   bind();
@@ -397,11 +431,7 @@ function bind() {
   const val = (id) => (document.getElementById(id)?.value ?? '').trim();
   const checked = (id) => Boolean(document.getElementById(id)?.checked);
 
-  // 总闸：卡片大按钮与顶栏小按钮是同一个切换动作的两态，绑同一个 id
-  on('btnGateToggle', async () => {
-    await api('/api/gate', { method: 'POST', body: JSON.stringify({ paused: !state.gate.paused }) });
-    refresh();
-  });
+  // 暂停/恢复自动回复（运行层，顶栏唯一入口；卡片只展示状态，不再放按钮，避免重复与矛盾）
   on('btnToggleGate', async () => {
     await api('/api/gate', { method: 'POST', body: JSON.stringify({ paused: !state.gate.paused }) });
     refresh();
@@ -434,6 +464,7 @@ function bind() {
     if (key) values.AI_API_KEY = key;
     const r = await api('/api/env', { method: 'POST', body: JSON.stringify({ values }) });
     form.ai.key = '';
+    modelStatus.probed = false; // 保存后按新的启用状态刷新徽标（未测试/未启用）
     alert(
       (r.changed || []).length
         ? `已保存：${r.changed.join('、')}\n改动需要重启服务后生效（顶栏「停止服务」→「启动服务」）`
@@ -471,6 +502,39 @@ function bind() {
     el.oninput = () => {
       const [grp, key] = el.dataset.bind.split('.');
       if (form[grp]) form[grp][key] = el.value;
+    };
+  }
+
+  // ── 文件路径输入：原生文件选择器 + 上传到工作区 ──────────────────────
+  for (const el of document.querySelectorAll('[data-filebtn]')) {
+    el.onclick = () => {
+      const f = document.getElementById(el.dataset.filebtn + 'File');
+      if (f) f.click();
+    };
+  }
+  for (const el of document.querySelectorAll('input[type=file]')) {
+    el.onchange = async () => {
+      const file = el.files && el.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const r = await api('/api/file/upload', {
+          method: 'POST',
+          body: JSON.stringify({ name: file.name, content: text }),
+        });
+        if (!r.ok) {
+          alert('上传失败：' + (r.error || '未知错误'));
+          return;
+        }
+        const inp = document.getElementById(el.id.replace(/File$/, ''));
+        if (inp) {
+          inp.value = r.path;
+          form.ai.personaFile = r.path;
+        }
+      } catch (e) {
+        alert('上传失败：' + e.message);
+      }
+      render();
     };
   }
 
@@ -514,6 +578,9 @@ function bind() {
     });
     btn.textContent = '测试一下能不能用';
     form.ai.result = r;
+    modelStatus.probed = true;
+    modelStatus.state = r.ok ? 'ok' : 'fail';
+    modelStatus.model = r.ok ? (r.model || form.ai.model) : '';
     render();
   });
 
