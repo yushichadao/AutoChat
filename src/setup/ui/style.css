@@ -127,6 +127,8 @@ details.adv .adv-body{padding:4px 0 14px}
 .combo-item{padding:7px 9px;border-radius:6px;cursor:pointer;font-size:13px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .combo-item:hover{background:var(--acc-bg);color:var(--acc)}
 .combo-empty{padding:10px;font-size:12.5px;color:var(--dim);line-height:1.5}
+.combo input[readonly]{cursor:pointer;background:var(--soft)}
+.combo-other{color:var(--acc);font-style:italic}
 
 /* ── 移动端：单列、收紧间距、杜绝横向溢出 ── */
 @media (max-width:720px){

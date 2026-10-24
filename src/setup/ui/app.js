@@ -143,9 +143,9 @@ function aiCard() {
       <div class="grid">
         ${field('接口地址（一般以 /v1 结尾）', f.base, 'aiBaseUrl', 'text', 'http://127.0.0.1:11434/v1', 'ai.base')}
         ${field(`密钥${keySet ? '（已配置，留空表示不改）' : '（本地模型不用填）'}`, '', 'aiApiKey', 'password', 'sk-…', 'ai.key')}
-        <label>模型名（点 ▾ 展开「本地已有 / 云端已拉取」，也可手输）
+        <label>模型名（默认从下拉选；选「其他…」才可手输）
           <div class="combo" id="modelCombo">
-            <input id="aiModel" type="text" value="${esc(f.model)}" placeholder="${esc('qwen2.5:7b')}" data-bind="ai.model" autocomplete="off">
+            <input id="aiModel" type="text" value="${esc(f.model)}" placeholder="${esc('qwen2.5:7b')}" data-bind="ai.model" autocomplete="off" readonly>
             <button type="button" class="combo-toggle" id="btnModelToggle" aria-label="展开模型列表">▾</button>
             <div class="combo-panel" id="modelPanel" hidden></div>
           </div>
@@ -213,7 +213,7 @@ function openModelPanel() {
   let html = '';
   if (local.length) html += `<div class="combo-grp"><div class="combo-grp-h">本地已有（本机已启动的模型服务）</div>${local.map(comboItem).join('')}</div>`;
   if (cloud.length) html += `<div class="combo-grp"><div class="combo-grp-h">云端已拉取</div>${cloud.map(comboItem).join('')}</div>`;
-  if (!local.length && !cloud.length) html = `<div class="combo-empty">还没有模型来源：先在上面选一个「已启动」的本地服务，或点「拉取模型列表」。</div>`;
+  html += `<div class="combo-grp"><div class="combo-grp-h">其他</div><div class="combo-item combo-other" data-other="1">手动输入模型名…</div></div>`;
   panel.innerHTML = html;
   panel.hidden = false;
   for (const el of panel.querySelectorAll('[data-model]')) {
@@ -223,6 +223,12 @@ function openModelPanel() {
       closeModelPanel();
     };
   }
+  const other = panel.querySelector('[data-other]');
+  if (other) other.onclick = () => {
+    const input = document.getElementById('aiModel');
+    if (input) { input.removeAttribute('readonly'); input.focus(); input.select(); }
+    closeModelPanel();
+  };
 }
 function closeModelPanel() {
   const panel = document.getElementById('modelPanel');
@@ -649,7 +655,7 @@ function bind() {
     else openModelPanel();
   };
   if (mi) {
-    mi.onfocus = openModelPanel;
+    mi.onfocus = () => { if (mi.hasAttribute('readonly')) openModelPanel(); }; // 只读态（下拉模式）聚焦才展开；手输态不弹回面板
     mi.addEventListener('input', closeModelPanel); // 手输时收起（addEventListener 不覆盖 data-bind 的 oninput）
   }
   if (!window.__comboDocBound) {
