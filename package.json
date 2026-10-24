@@ -17,12 +17,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YOUR_USERNAME/AutoChat.git"
+    "url": "git+https://github.com/yushichadao/AutoChat.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/AutoChat/issues"
+    "url": "https://github.com/yushichadao/AutoChat/issues"
   },
-  "homepage": "https://github.com/YOUR_USERNAME/AutoChat#readme",
+  "homepage": "https://github.com/yushichadao/AutoChat#readme",
   "engines": {
     "node": ">=22"
   },

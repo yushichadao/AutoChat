@@ -573,7 +573,7 @@ autochat uninstall --purge                      # 连配置与数据一起清
 
 ```bash
 # 1. 把项目拷过去（git clone 或直接复制目录）
-git clone https://github.com/YOUR_USERNAME/AutoChat.git
+git clone https://github.com/yushichadao/AutoChat.git
 cd AutoChat
 
 # 2. 安装（零依赖，秒级完成）
