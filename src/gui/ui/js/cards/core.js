@@ -54,29 +54,65 @@
       '</span></div></div>' + rows.join('') + W.nextHint(tip), '必须');
   };
 
-  /** 首启向导卡：步骤条 + 当前步 + 一个动作按钮。 */
+  /** 首启向导卡：把每一步都列出来，缺什么点对应按钮即可（清晰入口）。 */
   cards.onboard = function (state, onboard) {
     if (!onboard || !onboard.steps || !onboard.steps.length) return '';
     const steps = onboard.steps;
-    const active = steps.find((s) => s.level === 'bad') || steps.find((s) => s.level === 'warn') || steps[0];
-
-    const dots = steps.map((s) => {
+    const rows = steps.map((s) => {
       const cls = s.level === 'ok' ? 'ok' : s.level === 'bad' ? 'bad' : s.level === 'warn' ? 'warn' : 'todo';
-      return '<li class="ob-dot ' + cls + (s.id === active.id ? ' cur' : '') + '">' +
-        '<span class="ob-pip"></span><span class="ob-lab">' + W.esc(s.title) + '</span></li>';
+      const mark = s.level === 'ok' ? '✓' : s.level === 'bad' ? '✗' : s.level === 'warn' ? '!' : '○';
+      const btn = s.action
+        ? '<button type="button" class="btn primary sm" data-act="' + W.esc(s.action.kind) + '">' + W.esc(s.action.label) + '</button>'
+        : '';
+      return '<li class="ob-row ' + cls + '"><span class="ob-mark">' + mark + '</span>' +
+        '<span class="ob-main"><b>' + W.esc(s.title) + '</b><span>' + W.esc(s.detail) +
+        (s.next ? ' · ' + W.esc(s.next) : '') + '</span></span>' + btn + '</li>';
     }).join('');
+    const sm = onboard.summary || {};
+    const total = sm.total || steps.length;
+    const head = '<p class="hint">还差 <b>' + ((sm.bad || 0) + (sm.warn || 0)) + '</b> 步没完成（共 ' + total + ' 步）。按下面按钮逐步搞定：</p>';
+    return W.card('开始配置（向导）', head + '<ul class="ob-list">' + rows + '</ul>', '推荐');
+  };
 
-    let action = '';
-    if (active.action) {
-      action = '<button type="button" class="btn primary" data-act="' + W.esc(active.action.kind) + '">' +
-        W.esc(active.action.label) + '</button>';
+  /** 连接微信卡：把 hook DLL 自动匹配 / 锁版本 / 启动注入 做成显眼入口。 */
+  cards.wechat = function (state) {
+    const v = state.wechatVersion || '';
+    const dllPath = (state.config && state.config.wechat && state.config.wechat.dllPath) || '';
+    const builtin = state.builtinDll && state.builtinDll.path;
+    const builtinVer = (state.builtinDll && state.builtinDll.version) || v;
+    const locked = state.versionLocked;
+
+    const rows = [];
+    if (dllPath) {
+      rows.push('<div class="actrow"><span class="swtext"><b>hook DLL</b><span>' + W.esc(dllPath) + '</span></span><span class="tag opt">已配置</span></div>');
+    } else if (builtin) {
+      rows.push(W.actRow({
+        title: 'hook DLL',
+        desc: '已匹配到内置 DLL（微信 ' + W.esc(builtinVer) + '），一键写入 WX_DLL_PATH',
+        label: '自动匹配并写入',
+        action: 'autodll',
+      }));
+    } else {
+      rows.push('<div class="actrow"><span class="swtext"><b>hook DLL</b><span>未匹配本机微信（' + W.esc(v || '?') + '）的内置 DLL，需要自备匹配的 DLL</span></span><span class="tag warn">缺失</span></div>');
     }
+    rows.push(W.actRow({
+      title: '锁定微信版本',
+      desc: locked ? '已锁定，微信不会自动升级（升级会让 DLL 失效）' : '锁定后微信无法自动升级，避免 hook DLL 失效',
+      label: locked ? '已锁定' : '锁定',
+      action: 'lock',
+    }));
+    rows.push(W.actRow({
+      title: '注入并启动助手',
+      desc: '启动服务会把 hook DLL 注入正在运行的微信（需管理员，会弹 UAC 提权）',
+      label: '启动助手',
+      action: 'service-start',
+    }));
 
-    const body = '<ol class="ob-steps">' + dots + '</ol>' +
-      '<div class="ob-detail"><b>' + W.esc(active.title) + '</b><p>' + W.esc(active.detail) + '</p>' +
-      (active.next ? '<p class="dim">' + W.esc(active.next) + '</p>' : '') + action + '</div>';
-
-    return W.card('首启向导', body, '推荐');
+    const tip = !v
+      ? '先装好并登录电脑版微信，刷新后这里会显示匹配结果。'
+      : '配好 DLL 与版本锁定后，点「启动助手」即自动注入微信。';
+    return W.card('连接微信（必做）',
+      '<p class="hint">检测到微信版本：' + W.esc(v || '未检测到') + '</p>' + rows.join('') + W.nextHint(tip), '必须');
   };
 
   /** 环境体检卡：分级结果 + 每项下一步。 */

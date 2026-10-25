@@ -58,6 +58,7 @@ const form = { ai: { base: '', key: '', model: '', providerId: '', options: [{ i
 test('每张卡片都能渲染出合法 HTML', () => {
   const out = [
     g.cards.onboard(state, onboard),
+    g.cards.wechat(state),
     g.cards.status(state),
     g.cards.ai(state, form),
     g.cards.modelService(state, ms),

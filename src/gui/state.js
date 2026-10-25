@@ -6,6 +6,7 @@ import { readChats } from '../core/chats.js';
 import { PauseState, PidFile } from '../core/pause.js';
 import { installStatus } from '../tasks/install.js';
 import { detectWeChat } from '../bridge/process.js';
+import { detectBuiltinDll } from '../tasks/autodll.js';
 import { isVersionLocked } from '../tasks/lock.js';
 import { HookClient } from '../bridge/hook-client.js';
 import { ContactCache } from '../bridge/contacts.js';
@@ -132,6 +133,7 @@ export async function buildState(rootDir = ROOT) {
     },
     wechatVersion: wechat ? wechat.version : null,
     versionLocked: await isVersionLocked(),
+    builtinDll: await detectBuiltinDll(rootDir),
   };
 }
 

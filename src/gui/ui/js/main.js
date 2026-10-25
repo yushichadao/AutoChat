@@ -106,16 +106,43 @@
       modelStatus.state === 'ok' ? 'ok' : 'warn');
 
     const onboardHtml = cards.onboard(state, onboard);
-    const core = [cards.status(state), cards.ai(state, form), cards.modelService(state, modelSvc)];
-    const adv = [cards.context(state), cards.chats(state, form.chat)];
-    const sys = [cards.install(state, installLog), cards.logs(state, logs), cards.diag(state, diag)];
+    const wechat = cards.wechat(state);
+    const modelSec = cards.ai(state, form) + cards.modelService(state, modelSvc);
+    const startSec = cards.status(state);
+    const advSec = cards.context(state) + cards.chats(state, form.chat);
+    const sysSec = cards.install(state, installLog) + cards.logs(state, logs) + cards.diag(state, diag);
 
     $('#main').innerHTML =
-      (onboardHtml ? W.group('第一次来', [onboardHtml]) : '') +
-      W.group('核心 · 配好才能跑', core) +
-      W.group('进阶 · 更好用', adv) +
-      W.group('系统 · 高级', sys);
+      '<section class="sec" id="sec-onboard">' + (onboardHtml || '') + '</section>' +
+      '<section class="sec" id="sec-wechat"><div class="sec-head"><h2>① 连接微信</h2><p>把 AI 接到你的微信上（必做）</p></div>' + wechat + '</section>' +
+      '<section class="sec" id="sec-model"><div class="sec-head"><h2>② 选择模型</h2><p>让 AI 有脑子：本地 Ollama 或云端 API</p></div>' + modelSec + '</section>' +
+      '<section class="sec" id="sec-start"><div class="sec-head"><h2>③ 启动助手</h2><p>注入 hook、开自动回复</p></div>' + startSec + '</section>' +
+      '<section class="sec" id="sec-adv"><div class="sec-head"><h2>④ 高级设置</h2><p>上下文、按会话、安装 / 卸载、日志、体检</p></div>' + advSec + sysSec + '</section>';
     bind();
+    bindNav();
+  }
+
+  /** 侧栏导航：点击滚动到对应分区，并随滚动高亮当前分区。 */
+  function bindNav() {
+    const items = $$('#sidenav .navitem');
+    const onClick = function () {
+      const id = this.getAttribute('data-nav');
+      const sec = document.getElementById(id);
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    for (const el of items) el.onclick = onClick;
+    const secs = ['sec-onboard', 'sec-wechat', 'sec-model', 'sec-start', 'sec-adv']
+      .map((id) => document.getElementById(id))
+      .filter(Boolean);
+    const onScroll = () => {
+      let cur = secs[0];
+      const y = window.scrollY + 120;
+      for (const s of secs) if (s.offsetTop <= y) cur = s;
+      for (const el of items) el.classList.toggle('active', !!cur && el.getAttribute('data-nav') === cur.id);
+    };
+    window.removeEventListener('scroll', onScroll);
+    window.addEventListener('scroll', onScroll);
+    onScroll();
   }
 
   /** 读表单里所有 [data-bind] 的值。 */
@@ -203,6 +230,9 @@
           } else if (act === 'model-service-configure') {
             const r = await api('/api/model-service/configure', { method: 'POST', body: '{}' });
             installLog = r.message || '';
+          } else if (act === 'model') {
+            const sec = document.getElementById('sec-model');
+            if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
           } else if (act === 'uninstall') {
             if (!confirm('卸载会停服务、去自启、删快捷方式并还原微信目录里的 version.dll，确定？')) return;
             await api('/api/uninstall', { method: 'POST', body: '{}' });

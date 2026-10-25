@@ -70,17 +70,19 @@ export async function checkEnvironment({ rootDir = ROOT } = {}) {
   );
 
   const dll = env.WX_DLL_PATH || '';
-  checks.push(
-    step(
-      'hook DLL',
-      Boolean(dll && fs.existsSync(dll)),
-      dll
-        ? fs.existsSync(dll)
-          ? dll
-          : `配置里的路径不存在：${dll}`
-        : '未配置 WX_DLL_PATH（需要自备匹配的 DLL）'
-    )
-  );
+  let dllOk = Boolean(dll && fs.existsSync(dll));
+  let dllDetail;
+  if (dll) {
+    dllDetail = fs.existsSync(dll) ? dll : `配置里的路径不存在：${dll}`;
+  } else if (wechat?.version) {
+    const builtin = resolveBuiltinDll(wechat.version, rootDir);
+    dllDetail = builtin
+      ? `未配置，但已匹配到内置 DLL（微信 ${wechat.version}），可在配置器一键写入`
+      : '未配置 WX_DLL_PATH（没有匹配本机微信的内置 DLL，需要自备）';
+  } else {
+    dllDetail = '未配置 WX_DLL_PATH（需要自备匹配的 DLL）';
+  }
+  checks.push(step('hook DLL', dllOk, dllDetail));
   return checks;
 }
 
