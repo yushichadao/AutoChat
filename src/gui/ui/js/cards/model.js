@@ -5,27 +5,48 @@
   const W = g.W;
   const cards = g.cards ? g.cards : {};
 
-  /** AI 卡：选来源 → 填地址/密钥/模型 → 现场测一次。 */
+  /** AI 卡：下拉选来源 → 预设只补密钥 / 自定义才手填 → 现场测一次。 */
   cards.ai = function (state, form) {
     const a = state.config.ai;
     const f = form.ai;
+    const providerId = f.providerId || '';
+    const current = (f.options || []).find((o) => o.id === providerId);
+    const isCustom = providerId === 'custom';
 
-    const sources = [];
-    (f.options || []).forEach((o, i) => {
-      sources.push('<button type="button" class="src-item' + (o.id === f.providerId ? ' on' : '') +
-        '" data-src="' + W.esc(o.id) + '"><b>' + W.esc(o.name) + '</b>' +
-        '<span>' + W.esc(o.baseUrl ? o.baseUrl : '自己填地址') + '</span>' +
-        (o.online ? '<i class="tag rec">● 在线</i>' : '') + '</button>');
-    });
+    // 步骤 1：自定义 UI 下拉，一键选择来源（含「自定义…」）
+    const menu = (f.options || []).map((o) =>
+      '<li class="dd-item' + (o.id === providerId ? ' on' : '') + '" data-src="' + W.esc(o.id) + '">' +
+      '<b>' + W.esc(o.name) + '</b><span>' + W.esc(o.baseUrl ? o.baseUrl : '自定义地址') + '</span>' +
+      (o.online ? '<i class="tag rec">● 在线</i>' : '') + '</li>').join('');
+    const ddLabel = current ? current.name : (isCustom ? '自定义…' : '请选择模型来源…');
+    const step1 = '<h3><span class="n">1</span>模型从哪来</h3>' +
+      '<div class="dropdown" data-dd="provider">' +
+      '<button type="button" class="dd-toggle" data-dd-toggle><span>' + W.esc(ddLabel) +
+      '</span><span class="caret">▾</span></button>' +
+      '<ul class="dd-menu">' + menu +
+      '<li class="dd-item' + (isCustom ? ' on' : '') + '" data-src="custom"><b>自定义…</b>' +
+      '<span>自己填接口地址 / 模型名 / 密钥</span></li></ul></div>';
+
+    // 步骤 2：预设只展示需要的（云端要密钥）；只有「自定义」才展示全部手填
+    let step2inner;
+    if (isCustom) {
+      step2inner = '<div class="grid">' +
+        W.field('接口地址（一般到 /v1 为止）', f.base, 'aiBaseUrl', 'text', 'http://127.0.0.1:11434/v1', 'ai.base') +
+        W.field('密钥（本地模型不用填）', '', 'aiApiKey', 'password', 'sk-…', 'ai.key') +
+        W.field('模型名', f.model, 'aiModel', 'text', 'qwen2.5:7b', 'ai.model') +
+        '</div>';
+    } else if (current) {
+      step2inner = '<p class="hint">已选：<b>' + W.esc(current.name) + '</b> · ' + W.esc(current.baseUrl || '') +
+        (current.model ? ' · 模型 ' + W.esc(current.model) : '') + '</p>' +
+        (current.needsKey
+          ? W.field('密钥（' + W.esc(current.name) + ' 需要）', '', 'aiApiKey', 'password', 'sk-…', 'ai.key')
+          : '<p class="hint">该来源无需密钥，直接点下面的「测试一下」即可。</p>');
+    } else {
+      step2inner = '<p class="hint">先在上面选择一个模型来源。</p>';
+    }
+    const step2 = '<h3><span class="n">2</span>确认 / 填写</h3>' + step2inner;
 
     const review = (f.review || []).map((t) => '<span class="tag opt">' + W.esc(t.text) + '</span>').join(' ');
-
-    const step1 = '<h3><span class="n">1</span>模型从哪来</h3><div class="srcs">' + sources.join('') + '</div>';
-    const step2 = '<h3><span class="n">2</span>地址 / 密钥 / 模型名</h3><div class="grid">' +
-      W.field('接口地址（一般到 /v1 为止）', f.base, 'aiBaseUrl', 'text', 'http://127.0.0.1:11434/v1', 'ai.base') +
-      W.field('密钥（本地模型不用填）', '', 'aiApiKey', 'password', 'sk-…', 'ai.key') +
-      W.field('模型名', f.model, 'aiModel', 'text', 'qwen2.5:7b', 'ai.model') +
-      '</div>';
     const step3 = '<h3><span class="n">3</span>测一下能不能用</h3>' +
       '<div class="row">' +
       '<button class="btn" id="btnPullModels">拉取模型列表</button>' +

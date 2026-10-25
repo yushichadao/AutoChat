@@ -74,7 +74,7 @@
     return W.card('开始配置（向导）', head + '<ul class="ob-list">' + rows + '</ul>', '推荐');
   };
 
-  /** 连接微信卡：把 hook DLL 自动匹配 / 锁版本 / 启动注入 做成显眼入口。 */
+  /** 连接微信卡：把 hook DLL 自动匹配 / 风险告知 / 锁版本 / 启动注入 做成显眼入口。 */
   cards.wechat = function (state) {
     const v = state.wechatVersion || '';
     const dllPath = (state.config && state.config.wechat && state.config.wechat.dllPath) || '';
@@ -87,8 +87,8 @@
       rows.push('<div class="actrow"><span class="swtext"><b>hook DLL</b><span>' + W.esc(dllPath) + '</span></span><span class="tag opt">已配置</span></div>');
     } else if (builtin) {
       rows.push(W.actRow({
-        title: 'hook DLL',
-        desc: '已匹配到内置 DLL（微信 ' + W.esc(builtinVer) + '），一键写入 WX_DLL_PATH',
+        title: 'hook DLL（推荐匹配）',
+        desc: '检测到微信 ' + W.esc(builtinVer) + '，已内置严格匹配的 DLL，一键写入即可，无需自备',
         label: '自动匹配并写入',
         action: 'autodll',
       }));
@@ -108,11 +108,23 @@
       action: 'service-start',
     }));
 
+    // 其他自定义配置方式：手动指定自己的 / 第三方 DLL
+    const custom = '<details class="adv"><summary>其他自定义配置方式</summary>' +
+      '<div class="adv-body"><p class="hint">如果你有自己的 / 第三方的 hook DLL（必须和本机微信版本严格一致），可手动指定路径：</p>' +
+      '<div class="row">' +
+      W.field('自定义 hook DLL 路径', dllPath, 'dllCustomPath', 'text', 'D:\\path\\to\\your.dll', 'wechat.dllPath') +
+      '<button type="button" class="btn" data-act="dll-custom">应用此路径</button>' +
+      '</div></div></details>';
+
+    const risk = '<div class="risk"><b>风险提示：</b>注入 hook 会修改微信进程内存，且内置 DLL 未做代码签名；' +
+      '微信版本错配或更新可能让注入失效甚至触发风控。建议：① 先「锁定微信版本」；② 用不重要的小号先试；③ 只从可信来源获取 DLL。</div>';
+
     const tip = !v
       ? '先装好并登录电脑版微信，刷新后这里会显示匹配结果。'
       : '配好 DLL 与版本锁定后，点「启动助手」即自动注入微信。';
     return W.card('连接微信（必做）',
-      '<p class="hint">检测到微信版本：' + W.esc(v || '未检测到') + '</p>' + rows.join('') + W.nextHint(tip), '必须');
+      '<p class="hint">检测到微信版本：' + W.esc(v || '未检测到') + '</p>' +
+      rows.join('') + risk + custom + W.nextHint(tip), '必须');
   };
 
   /** 环境体检卡：分级结果 + 每项下一步。 */

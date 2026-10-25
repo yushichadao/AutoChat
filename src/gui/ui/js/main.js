@@ -216,6 +216,12 @@
           else if (act === 'resume') await api('/api/gate', { method: 'POST', body: JSON.stringify({ paused: false }) });
           else if (act === 'lock') await api('/api/lock', { method: 'POST', body: '{}' });
           else if (act === 'autodll') await api('/api/autodll', { method: 'POST', body: JSON.stringify({ write: true }) });
+          else if (act === 'dll-custom') {
+            const inp = document.getElementById('dllCustomPath');
+            const p = inp ? inp.value.trim() : '';
+            const r = await api('/api/wechat/dll', { method: 'POST', body: JSON.stringify({ path: p }) });
+            if (!r.ok) alert(r.message || '应用失败');
+          }
           else if (act === 'model-service-start') {
             const r = await api('/api/model-service/start', { method: 'POST', body: '{}' });
             installLog = r.message || '';
@@ -263,6 +269,18 @@
       };
     }
 
+    // 自定义 UI 下拉：点击开关；点击页面其它地方关闭
+    for (const el of $$('[data-dd-toggle]')) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const dd = el.closest('.dropdown');
+        if (dd) dd.classList.toggle('open');
+      };
+    }
+    document.onclick = () => {
+      for (const dd of $$('.dropdown.open')) dd.classList.remove('open');
+    };
+
     const on = (id, fn) => {
       const el = document.getElementById(id);
       if (el) el.onclick = fn;
@@ -298,6 +316,12 @@
     });
 
     on('btnSaveAi', async () => {
+      const baseEl = document.getElementById('aiBaseUrl');
+      if (baseEl) form.ai.base = baseEl.value;
+      const modelEl = document.getElementById('aiModel');
+      if (modelEl) form.ai.model = modelEl.value;
+      const keyEl = document.getElementById('aiApiKey');
+      if (keyEl && keyEl.value) form.ai.key = keyEl.value;
       const values = collectBinds();
       values.AI_BASE_URL = form.ai.base;
       values.AI_MODEL = form.ai.model;
