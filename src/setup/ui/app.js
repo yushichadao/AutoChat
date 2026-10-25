@@ -140,7 +140,10 @@ function aiCard() {
   const keySet = Boolean(state.env.AI_API_KEY);
 
   // 醒目引导：AutoChat 不启动模型，必须先让自己电脑上的模型服务跑起来
-  const bootWarn = `<div class="guide-warn">⚠ <b>先让自己电脑上的模型服务跑起来</b>：AutoChat 不负责启动模型。本地模型（Ollama / LM Studio 等）请先在系统里把它跑起来并监听端口（11434 / 1234 等），再点「测试一下」。点「本机发现」能自动找到已经启动的服务。</div>`;
+  const ICO_WARN = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 3L2 20h20z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>';
+  const ICO_MONITOR = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>';
+  const ICO_KEY = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="8" cy="15" r="4"/><path d="M11 12L20 3"/><path d="M16 7l3 3"/></svg>';
+  const bootWarn = `<div class="guide-warn">${ICO_WARN} <b>先让自己电脑上的模型服务跑起来</b>：AutoChat 不负责启动模型。本地模型（Ollama / LM Studio 等）请先在系统里把它跑起来并监听端口（11434 / 1234 等），再点「测试一下」。点「本机发现」能自动找到已经启动的服务。</div>`;
 
   const step1 = `
     <div class="wiz-step">
@@ -151,7 +154,7 @@ function aiCard() {
             ${discovered
               .map(
                 (d) => `<div class="pick${f.base === d.baseUrl ? ' sel' : ''}" data-pick-base="${esc(d.baseUrl)}" data-pick-model="${esc(d.models[0] || '')}" data-pick-id="${esc(d.providerId)}">
-                  <div class="t">🖥 ${esc(d.name)} <span class="tag live">已启动</span></div>
+                  <div class="t">${ICO_MONITOR} ${esc(d.name)} <span class="tag live">已启动</span></div>
                   <div class="d">${esc(d.baseUrl)}｜发现 ${d.models.length} 个模型：${esc(d.models.slice(0, 3).join('、'))}${d.models.length > 3 ? ' …' : ''}</div>
                 </div>`
               )
@@ -287,22 +290,24 @@ function guideBox(p) {
   return `<div class="guide">
     <div class="g-title">怎么用「${esc(p.name)}」</div>
     <ol>${p.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
-    ${p.keyHint ? `<div class="keyhint">🔑 ${esc(p.keyHint)}${p.keyUrl ? ` <a href="${esc(p.keyUrl)}" target="_blank" rel="noreferrer">去申请</a>` : ''}</div>` : ''}
-    ${p.tip ? `<div class="g-tip">⚠ ${esc(p.tip)}</div>` : ''}
+    ${p.keyHint ? `<div class="keyhint">${ICO_KEY} ${esc(p.keyHint)}${p.keyUrl ? ` <a href="${esc(p.keyUrl)}" target="_blank" rel="noreferrer">去申请</a>` : ''}</div>` : ''}
+    ${p.tip ? `<div class="g-tip">${ICO_WARN} ${esc(p.tip)}</div>` : ''}
   </div>`;
 }
 
 /** 测试结果面板：说人话。 */
 function aiResult(r) {
+  const ICO_OK = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>';
+  const ICO_ERR = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6"/><path d="M15 9l-6 6"/></svg>';
   if (r.ok) {
     return `<div class="res ok">
-      <div class="r-title">✅ 成功！模型能用（耗时 ${r.ms} 毫秒）</div>
+      <div class="r-title">${ICO_OK} 成功！模型能用（耗时 ${r.ms} 毫秒）</div>
       <div class="r-detail">接口地址 ${esc(r.base)}｜模型 ${esc(r.model || '')}</div>
       <div class="r-reply">模型回答：${esc(r.reply)}</div>
     </div>`;
   }
   return `<div class="res bad">
-    <div class="r-title">❌ ${esc(r.title || '没成功')}</div>
+    <div class="r-title">${ICO_ERR} ${esc(r.title || '没成功')}</div>
     <div class="r-detail">${esc(r.detail || r.error || '')}</div>
     ${r.error && r.detail ? `<div class="keyhint">技术细节：${esc(r.error)}</div>` : ''}
   </div>`;
