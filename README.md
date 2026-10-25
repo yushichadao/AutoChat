@@ -711,10 +711,11 @@ AI_MODEL=qwen2.5:7b
 AI_PERSONA_FILE=./data/persona-default.md
 ```
 
-### 两个必看易错点
+### 三个必看易错点
 
-1. **`WX_RECEIVE_MODE=poll` 必须配 `WX_POLL_CHATS`**：4.1.10.27 的 hook 只能发不能收，靠 `getdbkey.dll` 取密钥轮询 `message_0.db`。不填 `WX_POLL_CHATS` 就永远收不到消息。
+1. **`WX_RECEIVE_MODE=poll` 必须配 `WX_POLL_CHATS`**：4.1.10.27 的 hook 只能发不能收，靠**注入的 DLL 在进程内提供 `/QueryDB/execute`** 轮询 `message_0.db`。不填 `WX_POLL_CHATS` 就永远收不到消息。
 2. **`WX_SELF_MODE` 别选错**：小号方案（手机主号 + 电脑小号登录）用 `sender`；只有「电脑微信 = 你手机号同号」时才用 `id`，否则会把自己发的消息全丢掉。
+3. **hook DLL 必须真正进入微信进程，否则「找不到数据库」**：DB 轮询依赖注入的 DLL 在进程内提供 `/QueryDB/execute`。默认 `inject` 模式是把 `version-aixed.dll` **直接注入运行中的微信（不替换、不改动微信目录文件）**；只有切到 `proxy` 模式才需要把 DLL 部署成微信目录下的 `version.dll`（需重启微信）。注入/部署成功前，`autochat doctor` 的「接收」项会告警，日志也能看到 DLL 是否加载。
 
 ---
 
