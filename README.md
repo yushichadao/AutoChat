@@ -49,6 +49,8 @@
 - [一键安装与卸载](#一键安装与卸载)
 - [异机部署](#异机部署一键配置)
 - [安全护栏](#安全护栏)
+- [推荐配置（起步）](#推荐配置起步)
+- [拓展方案](#拓展方案)
 - [配置项](#配置项)
 - [目录结构](#目录)
 - [测试](#测试)
@@ -103,7 +105,7 @@ npm run demo
 | 2 | 拉项目（自制 DLL 已自带） | `git clone https://github.com/yushichadao/AutoChat.git` | 或去 Releases 下 DLL 附件；勿改 `tools/` 外其他 |
 | 3 | **锁微信版本 4.1.10.27** + 阻断自动更新 | 见[锁住微信版本](#2-锁住微信版本这一步不能省) 的 PowerShell | DLL 跟版本强绑定，版本一变就失效；官方不供旧版，用[历史版本汇总](https://rodert.github.io/wechat-win-versions/) |
 | 4 | 配置模型（向导，测通才保存） | `npm run setup` 或 `npm run gui` | 选**本地模型**最省心且零出网；云端填你自己的 Key |
-| 5 | 设小号模式 + 开自动回复 + 写人设 | `.env`：`WX_SELF_MODE=sender`、`AUTO_REPLY_ENABLED=true`、`PERSONA_FILE` | 小号用 `sender`；同号必须 `id`（见[小号方案](#准备小号方案重要)） |
+| 5 | 设小号模式 + 开自动回复 + 写人设 | `.env`：`WX_SELF_MODE=sender`、`AI_ENABLED=1`、`PERSONA_FILE` | 小号用 `sender`；同号必须 `id`（见[小号方案](#准备小号方案重要)） |
 | 6 | 指 DLL 路径 | `.env`：`WX_DLL_PATH=…/version-aixed.dll` | 4.1.10.27 用 `tools/wxhook/WeChat-Hook-main/version-aixed.dll` |
 | 7 | 启动并注入微信 | `npm start` → 选 `inject`(管理员) 或 `proxy` | 注入只在本机微信进程内；`autochat doctor` 自检 |
 | 8 | **验证**：主号给小号发"你好" → 小号自动回 | 看终端日志 / `npm run check` | 收到回覆即成功；没回看 doctor 的「小号检查」 |
@@ -665,6 +667,120 @@ npm start
 | 配置器鉴权 | 随机令牌 | 只监听回环地址，页面请求必须带令牌；`.env` 只允许改白名单键 |
 | 密钥存放 | `.env` | 已在 `.gitignore` 中；`data/` 同样忽略 |
 | 零运行时依赖 | `dependencies: {}` | 只用 Node 内置模块，`npm install` 不装任何东西 |
+
+---
+
+## 推荐配置（起步）
+
+> 下面这套是针对你当前环境（**微信 4.1.10.27 + 自制 `version-aixed.dll` + 小号方案**）的「抄了就能跑」配置。先走[新手指南](#新手指南从发现项目到小号开始-ai-回复)跑通流程，再来这里对字段。
+
+### 环境与版本
+
+| 项 | 推荐 |
+|---|---|
+| 系统 | Windows 10/11 64 位 |
+| Node.js | ≥ 22 LTS |
+| 微信 | 4.1.10.27（锁版本，阻断自动更新） |
+| 自制 DLL | `tools/wxhook/WeChat-Hook-main/version-aixed.dll` |
+| 模型 | 本地 Ollama / LM Studio（如 `qwen2.5:7b`），零出网最隐私 |
+
+### `.env` 起步片段
+
+```bash
+# 注入（aixed 是注入型 DLL，用 inject 模式）
+WX_INJECT_MODE=inject
+WX_DLL_PATH=C:/你的路径/SnowLuma-wx/tools/wxhook/WeChat-Hook-main/version-aixed.dll
+WX_HOOK_PORT=30001
+
+# 接收：4.1.10.27 的 hook 无接收能力，必须 DB 轮询
+WX_RECEIVE_MODE=poll
+WX_POLL_CHATS=wxid_xxx@chatroom,好友wxid
+WX_POLL_DB=message_0.db
+
+# 小号方案：电脑登录的是小号，按本机 wxid 过滤自己发的消息
+WX_SELF_MODE=sender
+
+# AI 总开关（真正的开关是 AI_ENABLED，不是 AUTO_REPLY_ENABLED）
+AI_ENABLED=1
+AI_MASTER_SWITCH=1
+AI_BASE_URL=http://127.0.0.1:11434/v1   # 本地 Ollama 示例
+AI_MODEL=qwen2.5:7b
+# AI_API_KEY=  本地模型一般不填
+
+# 小号人设（可选）
+AI_PERSONA_FILE=./data/persona-default.md
+```
+
+### 两个必看易错点
+
+1. **`WX_RECEIVE_MODE=poll` 必须配 `WX_POLL_CHATS`**：4.1.10.27 的 hook 只能发不能收，靠 `getdbkey.dll` 取密钥轮询 `message_0.db`。不填 `WX_POLL_CHATS` 就永远收不到消息。
+2. **`WX_SELF_MODE` 别选错**：小号方案（手机主号 + 电脑小号登录）用 `sender`；只有「电脑微信 = 你手机号同号」时才用 `id`，否则会把自己发的消息全丢掉。
+
+---
+
+## 拓展方案
+
+默认配置跑通后，下面这些是可选项，按需求开启。
+
+### 1. 使用云端 API（OpenAI 兼容）
+
+不想跑本地模型、或要更强模型时，把 `AI_BASE_URL` 指向任意 OpenAI 兼容端点，并填 `AI_API_KEY` 与 `AI_MODEL`：
+
+| 服务商 | `AI_BASE_URL` | `AI_MODEL` 示例 |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| 腾讯 Maas | `https://tokenhub.tencentmaas.com/v1` | 控制台提供的模型名 |
+| 硅基流动 / 通义千问 等 | 各自 `/v1` 地址 | 各自模型名 |
+
+```bash
+AI_ENABLED=1
+AI_BASE_URL=https://api.deepseek.com/v1
+AI_API_KEY=sk-你的密钥
+AI_MODEL=deepseek-chat
+```
+
+> 隐私提示：云端模型会把**对话文本**发到该服务，敏感场景建议留在本地模型；本项目不留存、不上报任何对话。
+
+### 2. proxy 注入模式（替代 inject）
+
+默认 `WX_INJECT_MODE=inject` 是把 DLL 注入运行中的微信进程。另一种是把 DLL 改名 `version.dll` 放进微信安装目录，重启微信由系统加载（适合微信常驻、不想每次注入的场景）：
+
+```bash
+WX_INJECT_MODE=proxy
+WX_DLL_PATH=.../version-aixed.dll
+```
+
+部署用 `autochat install --deploy-dll`（需管理员权限，原文件备份为 `version.dll.bak`，卸载时还原）。
+
+### 3. 同号方案（id 模式）
+
+若电脑微信就是你手机号同号（手机和电脑登录同一个号），必须改用 `id` 模式，按「机器人发过的消息 id」精确排除自己的回复，否则会自问自答：
+
+```bash
+WX_SELF_MODE=id
+```
+
+### 4. 按会话换模型 / 人设
+
+在 `config.json` 的 `chats` 里对每个会话单独配模型、人设、群策略（优先级高于全局）：
+
+```json
+{
+  "chats": {
+    "wxid_xxx@chatroom": { "enabled": true, "groupReply": "always", "model": "deepseek-chat", "personaFile": "./data/persona-group.txt" },
+    "wxid_friend": { "enabled": true, "model": "qwen2.5:7b" }
+  }
+}
+```
+
+### 5. 群回复策略
+
+`AI_GROUP_REPLY` 控制群聊什么时候回：`mention`（仅被 @ 时回，默认）、`always`（群内任何消息都回）、`never`（群内不回，只回私聊）。
+
+### 6. 异机部署
+
+hook DLL 必须跑在**装了微信的 Windows** 上；AutoChat 本体（含模型调用）可以跑在另一台机器——只要 `AI_BASE_URL` 指向可达的模型服务、微信机的 hook HTTP 端口对 AutoChat 机可达即可。
 
 ---
 
