@@ -358,7 +358,7 @@ async function cmdSetup() {
 
   try {
     console.log(`\n${C.bold}AutoChat 初始化向导${C.reset} ${C.dim}—— 照着答就行，答错了可以重来${C.reset}`);
-    console.log(`${C.dim}只问 4 步，随时按 Ctrl+C 退出${C.reset}`);
+    console.log(`${C.dim}只问 5 步，随时按 Ctrl+C 退出${C.reset}`);
 
     // ── 第 1 步：模型从哪来 ──────────────────────────────────────────
     const found = await discoverLocal();
@@ -472,9 +472,24 @@ async function cmdSetup() {
       line('warn', '没填全地址和模型名', '可以先保存，之后再改');
     }
 
+    // ── 第 5 步：小号 / 同号 + 人设 + 监听会话 ─────────────────────
+    console.log(`\n${C.bold}第 5 / 5 步${C.reset} ${C.dim}小号方案 / 人设（决定机器人怎么识别「自己发的消息」）${C.reset}`);
+    console.log(`  ${C.dim}电脑微信登录的是小号还是你主号？${C.reset}`);
+    console.log(`    1) 小号（推荐：手机主号 + 电脑小号登录，互不影响）`);
+    console.log(`    2) 同号（电脑微信就是你手机号同号）`);
+    const modeRaw = await ask('  选哪个（1/2，默认 1）', '1');
+    const selfMode = modeRaw.trim() === '2' ? 'id' : 'sender';
+    if (selfMode === 'id') {
+      console.log(`  ${C.yellow}同号方案必须用 id 模式，否则会把自己发的消息当别人的回。${C.reset}`);
+    }
+    const persona = await ask('  人设文件路径（可选，如 ./data/persona-default.md，直接回车跳过）', '');
+    const pollChats = await ask('  要监听的会话 wxid（逗号分隔，可留空后用 autochat chats add）', '');
+
     const save = (await ask('  要保存吗？', 'Y')).toLowerCase();
     if (save === '' || save === 'y' || save === 'yes') {
-      const updates = { AI_BASE_URL: base, AI_MODEL: model, AI_ENABLED: '1', AI_MASTER_SWITCH: '1' };
+      const updates = { AI_BASE_URL: base, AI_MODEL: model, AI_ENABLED: '1', AI_MASTER_SWITCH: '1', WX_SELF_MODE: selfMode };
+      if (persona) updates.AI_PERSONA_FILE = persona;
+      if (pollChats) updates.WX_POLL_CHATS = pollChats;
       if (key) updates.AI_API_KEY = key;
       const r = setEnvValues(envFile, updates);
       console.log(`\n  ${C.green}已保存：${r.changed.join('、')}${C.reset}`);
@@ -549,6 +564,7 @@ async function cmdInstall() {
     autostart: flag('autostart'),
     shortcut: flag('shortcut'),
     deployDll: flag('deploy-dll'),
+    lock: flag('lock'),
   });
   for (const s of r.steps) line(s.ok ? 'ok' : 'bad', s.name, s.detail);
   console.log(
@@ -643,7 +659,7 @@ ${C.bold}\u7ba1\u7406${C.reset}
   autochat chats list|add|rm|enable|disable <\u4f1a\u8bddid>
   autochat context [\u4f1a\u8bddid] [--clear]   \u67e5\u770b / \u6e05\u7a7a\u4e0a\u4e0b\u6587
   autochat config get|set      \u8bfb\u5199 .env\uff08set \u4fdd\u7559\u6ce8\u91ca\uff09
-  autochat install [--autostart] [--shortcut] [--deploy-dll] [KEY=VALUE ...]
+  autochat install [--autostart] [--shortcut] [--deploy-dll] [--lock] [KEY=VALUE ...]
   autochat uninstall [--purge]
 `);
 }

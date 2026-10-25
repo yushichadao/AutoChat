@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
 import { ROOT } from '../config.js';
 import { setEnvValues, readEnvFile } from '../cli/env-file.js';
 import { deployProxyDll } from '../bridge/injector.js';
 import { detectWeChat } from '../bridge/process.js';
+import { resolveProfile } from '../bridge/profiles.js';
 import {
   isWindows,
   isElevated,
@@ -82,6 +84,69 @@ export async function checkEnvironment({ rootDir = ROOT } = {}) {
   return checks;
 }
 
+/** 执行一段 PowerShell，返回 { ok, out, err }。 */
+function runPs(script, timeout = 15000) {
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      { windowsHide: true, timeout, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => resolve({ ok: !err, out: String(stdout || '').trim(), err: String(err?.message || '') })
+    );
+  });
+}
+
+/**
+ * 锁住微信版本：把 update 目录替换成同名只读文件，微信无法再下载更新。
+ * 路径为用户目录（%APPDATA%\Tencent\xwechat\update），不需要管理员权限。
+ * 还原见 uninstall（或手动删除该只读文件）。
+ */
+export async function lockWeChatUpdate() {
+  const { ok, out, err } = await runPs(
+    "$up = Join-Path $env:APPDATA 'Tencent\\xwechat\\update';" +
+      "if(Test-Path $up){ Remove-Item $up -Recurse -Force -ErrorAction SilentlyContinue };" +
+      "New-Item -ItemType File -Path $up -Force | Out-Null;" +
+      "(Get-Item $up).IsReadOnly = $true;" +
+      "Write-Output 'locked'"
+  );
+  if (!ok) return { ok: false, detail: err || out || 'PowerShell 执行失败' };
+  return { ok: true, detail: '已把 update 目录替换为只读文件，微信无法自动下载更新' };
+}
+
+const BUILTIN_AIXED = 'tools/wxhook/WeChat-Hook-main/version-aixed.dll';
+const BUILTIN_MILOIRA = [
+  'tools/wxhook/mini.dll',
+  'tools/wxhook/mini2.dll',
+  'tools/wxhook/mini_c.dll',
+  'tools/wxhook/mini_gcc16.dll',
+  'tools/wxhook/version-gcc16.dll',
+];
+
+/**
+ * 按微信版本匹配项目内置的自制 DLL（项目已附带，clone 自带）。
+ * 返回绝对路径；无匹配返回 null。
+ */
+export function resolveBuiltinDll(version, rootDir = ROOT) {
+  const r = resolveProfile(version);
+  if (!r.profile) return null;
+  const d = r.profile.dll.toLowerCase();
+  if (d.includes('aixed')) {
+    if (r.profile.wechat === '4.1.10.27') {
+      const p = path.join(rootDir, BUILTIN_AIXED);
+      return fs.existsSync(p) ? p : null;
+    }
+    return null;
+  }
+  if (d.includes('miloira')) {
+    for (const c of BUILTIN_MILOIRA) {
+      const p = path.join(rootDir, c);
+      if (fs.existsSync(p)) return p;
+    }
+    return null;
+  }
+  return null;
+}
+
 /**
  * 执行安装。
  * @param {object} opts
@@ -97,6 +162,35 @@ export async function install(opts = {}) {
   const envFile = path.join(rootDir, '.env');
   const jsonFile = path.join(rootDir, 'config.json');
   const steps = [];
+
+  // ── 锁住微信版本（阻断自动更新）──
+  if (opts.lock) {
+    try {
+      const r = await lockWeChatUpdate();
+      steps.push(step('锁住微信版本', r.ok, r.detail));
+    } catch (err) {
+      steps.push(step('锁住微信版本', false, err.message));
+    }
+  }
+
+  // ── 自动选 DLL：未显式指定时，按检测到的微信版本匹配内置 DLL ──
+  if (!opts.env?.WX_DLL_PATH && !opts.dllPath) {
+    const wechat = await detectWeChat(opts.env?.WX_INSTALL_DIR || '').catch(() => null);
+    if (wechat?.version) {
+      const builtin = resolveBuiltinDll(wechat.version, rootDir);
+      if (builtin) {
+        opts.env = { ...(opts.env || {}), WX_DLL_PATH: builtin };
+        const lv = resolveProfile(wechat.version).level;
+        steps.push(
+          step(
+            '自动选 DLL',
+            true,
+            `${path.relative(rootDir, builtin)}（微信 ${wechat.version}${lv === 'exact' ? '' : '，版本近似匹配，可能需手动换'}）`
+          )
+        );
+      }
+    }
+  }
 
   try {
     if (!fs.existsSync(envFile)) {
