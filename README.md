@@ -99,7 +99,7 @@ npm run demo
 | # | 做什么 | 命令 / 文件 | 注意（隐私·易错） |
 |---|---|---|---|
 | 0 | 用另一台手机准备一个微信**小号** | — | 主号继续日常用；小号只在这台电脑登录 |
-| 1 | 装 **Node.js ≥ 22** | `node -v` | 项目**零运行时依赖**，不用 `npm install`（直接 `node` 跑脚本即可） |
+| 1 | 装 **Node.js ≥ 22**（[官网下载 LTS](https://nodejs.org/zh-cn/download/)） | 安装后 `node -v` 验证 | 项目**零运行时依赖**，不用 `npm install`（直接 `node` 跑脚本即可） |
 | 2 | 拉项目（自制 DLL 已自带） | `git clone https://github.com/yushichadao/AutoChat.git` | 或去 Releases 下 DLL 附件；勿改 `tools/` 外其他 |
 | 3 | **锁微信版本 4.1.10.27** + 阻断自动更新 | 见[锁住微信版本](#2-锁住微信版本这一步不能省) 的 PowerShell | DLL 跟版本强绑定，版本一变就失效；官方不供旧版，用[历史版本汇总](https://rodert.github.io/wechat-win-versions/) |
 | 4 | 配置模型（向导，测通才保存） | `npm run setup` 或 `npm run gui` | 选**本地模型**最省心且零出网；云端填你自己的 Key |
