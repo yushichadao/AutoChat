@@ -46,7 +46,8 @@
     "uninstall": "node src/cli/index.js uninstall",
     "pause": "node src/cli/index.js pause",
     "resume": "node src/cli/index.js resume",
-    "stop": "node src/cli/index.js stop"
+    "stop": "node src/cli/index.js stop",
+    "dist": "pwsh -ExecutionPolicy Bypass -File tools/build-portable.ps1"
   },
   "bin": {
     "autochat": "src/cli/index.js"

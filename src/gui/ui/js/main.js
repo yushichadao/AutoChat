@@ -194,6 +194,15 @@
             installLog = r.message || '';
           } else if (act === 'model-service-stop') {
             await api('/api/model-service/stop', { method: 'POST', body: '{}' });
+          } else if (act === 'model-service-install') {
+            const r = await api('/api/model-service/install', { method: 'POST', body: '{}' });
+            installLog = r.message || '';
+          } else if (act === 'model-service-pull') {
+            const r = await api('/api/model-service/pull', { method: 'POST', body: '{}' });
+            installLog = r.message || '';
+          } else if (act === 'model-service-configure') {
+            const r = await api('/api/model-service/configure', { method: 'POST', body: '{}' });
+            installLog = r.message || '';
           } else if (act === 'uninstall') {
             if (!confirm('卸载会停服务、去自启、删快捷方式并还原微信目录里的 version.dll，确定？')) return;
             await api('/api/uninstall', { method: 'POST', body: '{}' });

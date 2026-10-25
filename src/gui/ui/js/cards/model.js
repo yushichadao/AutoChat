@@ -65,9 +65,20 @@
   /** 本地模型服务卡：本地可启停，云端只读。 */
   cards.modelService = function (state, ms) {
     if (!ms) return '';
-    const rows = (ms.runners || []).map((r) =>
-      '<li class="dg-item ' + (r.installed ? 'ok' : 'warn') + '"><b>' + W.esc(r.name) + '</b>' +
-      '<span>' + W.esc(r.installed ? '已安装' : '未检测到') + (r.exe ? '（' + W.esc(r.exe) + '）' : '') + '</span></li>').join('');
+    const rows = (ms.runners || []).map((r) => {
+      const line = '<li class="dg-item ' + (r.installed ? 'ok' : 'warn') + '"><b>' + W.esc(r.name) + '</b>' +
+        '<span>' + W.esc(r.installed ? '已安装' : '未检测到') + (r.exe ? '（' + W.esc(r.exe) + '）' : '') + '</span></li>';
+      // 没装 Ollama：给一个"下载并安装"的按钮（自动拉官方安装包并静默安装，需联网）
+      const installBtn = (!r.installed && r.id === 'ollama')
+        ? W.actRow({
+          title: '装一个本地模型引擎',
+          desc: '推荐 Ollama：数据不出本机。点下面会自动下载并安装（需要联网）',
+          label: '下载并安装 Ollama',
+          action: 'model-service-install',
+        })
+        : '';
+      return line + installBtn;
+    }).join('');
 
     const act = ms.online
       ? W.actRow({
@@ -79,15 +90,28 @@
       })
       : W.actRow({
         title: '本地模型服务',
-        desc: '地址 ' + W.esc(ms.baseUrl) + ' 连不上 —— 本机装了 Ollama 的话可以一键拉起来',
+        desc: '地址 ' + W.esc(ms.baseUrl) + ' 连不上 —— 本机装了 Ollama 的话可以一键拉起来（无需联网）',
         label: '启动模型服务',
         action: 'model-service-start',
       });
 
-    const cloud = '<p class="hint">云端模型由服务商托管，我们只能检测连通性，不能替你启停。</p>';
+    // 在线但里面没有模型：给一个"拉默认模型"的按钮（需联网，几百 MB～1GB）
+    const noModelBtn = ms.online && (!ms.models || ms.models.length === 0)
+      ? W.actRow({
+        title: '还没有模型',
+        desc: '本地模型引擎已起，但里面是空的。点下面拉一个最小可用的中文模型（需联网）',
+        label: '拉取默认模型（qwen2.5:1.5b）',
+        action: 'model-service-pull',
+      })
+      : '';
 
-    return W.card('模型服务', '<ul class="dg-list">' + rows + '</ul>' + act + cloud +
-      W.nextHint(ms.online ? '' : '本地没装就装一个：https://ollama.com/download'), '推荐');
+    const cloud = '<p class="hint">云端模型由服务商托管，我们只能检测连通性，不能替你启停。</p>';
+    const hint = ms.online
+      ? '模型就绪后，去「接一个模型」卡确认地址与模型名，点保存并重启助手即可生效。'
+      : '本机没装就先点上面「下载并安装 Ollama」。';
+
+    return W.card('模型服务', '<ul class="dg-list">' + rows + '</ul>' + act + noModelBtn + cloud +
+      W.nextHint(hint), '推荐');
   };
 
   g.cards = cards;

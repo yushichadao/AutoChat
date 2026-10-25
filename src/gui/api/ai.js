@@ -1,5 +1,5 @@
 import { groupedProviders, listModels, testChat, discoverLocal, reviewConfig } from '../../tasks/model.js';
-import { modelServiceStatus, startModelService, stopModelService } from '../../tasks/model-service.js';
+import { modelServiceStatus, startModelService, stopModelService, installOllama, pullModel, configureLocalModel } from '../../tasks/model-service.js';
 import { loadConfig } from '../../core/config.js';
 
 /**
@@ -52,6 +52,23 @@ export const routes = {
 
   'POST /api/model-service/stop': async ({ rootDir }) => {
     const r = await stopModelService({ rootDir });
+    return { status: 200, body: r };
+  },
+
+  'POST /api/model-service/install': async ({ rootDir }) => {
+    const r = await installOllama({ rootDir });
+    return { status: 200, body: r };
+  },
+
+  'POST /api/model-service/pull': async ({ rootDir, body }) => {
+    const b = await body();
+    const r = await pullModel({ rootDir, model: b.model || 'qwen2.5:1.5b' });
+    return { status: 200, body: r };
+  },
+
+  'POST /api/model-service/configure': async ({ rootDir, body }) => {
+    const b = await body();
+    const r = await configureLocalModel({ rootDir, model: b.model || 'qwen2.5:1.5b' });
     return { status: 200, body: r };
   },
 };

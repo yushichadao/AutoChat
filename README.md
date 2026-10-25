@@ -29,7 +29,7 @@
 
 | 你是 | 从哪开始 |
 | --- | --- |
-| 会用电脑但不想碰命令行 | `npm run setup`（向导）或 `npm run gui`（图形化配置器） |
+| 会用电脑但不想碰命令行 | 下载便携版解压双击（`docs/GETTING-STARTED.md` 方式 A）或 `npm run gui` |
 | 会 cmd / PowerShell，想脚本化 | `npm run doctor` → `npm run setup` → `npm start` |
 | 想读代码做二次开发 | `src/` 六层结构，见 [CONTRIBUTING.md](CONTRIBUTING.md) |
 
@@ -45,6 +45,8 @@ npm start                    # 启动（需要管理员时用 npm start -- --ele
 ```
 
 验证：手机用**另一个号**给电脑上的小号发一句「你好」，几秒内应该收到回复。
+
+不想装 Node、想给小白一个「下载解压、双击即开」的包？见下方「便携版构建」。
 
 ---
 
@@ -118,6 +120,22 @@ hook DLL 与**微信版本强绑定**，微信一更新就失效（更新会直�
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更（2.0.0 有破坏性变更，看迁移指引） |
 | [LEGAL.md](LEGAL.md) | 法律与合规说明（必读） |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 目录结构、命令表、测试与提交规范 |
+
+---
+
+## 便携版构建
+
+不想装 Node、想给小白一个「下载解压、双击即开」的包？用脚本打一个**自带 Node 运行时**的 ZIP：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/build-portable.ps1
+```
+
+产物在 `dist/AutoChat-win-x64.zip`：内含 `node.exe` + 全部应用 + `AutoChat.bat` 启动器 + `使用说明.txt`。
+解压后双击 `AutoChat.bat` 就能打开图形化配置器，**离线也能开**；模型（Ollama 引擎 + 小模型）在首启向导里一键联网拉取。
+
+> 脚本首次会尝试从 nodejs.org 下载匹配版本的 `node.exe`；若网络受限，把对应 win-x64 的 `node.exe` 放到 `dist/` 再跑即可。
+> 发布到 GitHub Releases 时附上这个 zip，小白就走「方式 A」了（见 [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)）。
 
 ---
 
