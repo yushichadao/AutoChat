@@ -638,6 +638,7 @@ function printHelp() {
 ${C.bold}AutoChat${C.reset} \u2014\u2014 \u5fae\u4fe1\u4fa7\u7684\u672c\u5730 AI \u52a9\u624b
 
 ${C.bold}\u7b2c\u4e00\u6b21\u7528${C.reset}
+  autochat tui                 终端交互式一站式引导（新手推荐：检测→锁版本→选DLL→配模型→小号→启动）
   autochat setup                \u521d\u59cb\u5316\u5411\u5bfc\uff1a\u4e00\u6b65\u6b65\u7167\u7740\u7b54\u5c31\u80fd\u7528\uff08\u63a8\u8350\uff09
   autochat providers            \u770b\u6709\u54ea\u4e9b\u6a21\u578b\u53ef\u4ee5\u63a5\uff08\u672c\u5730 / \u4e91\u7aef\uff09
   autochat test                 \u6d4b\u8bd5\u73b0\u5728\u7684\u6a21\u578b\u914d\u7f6e\u80fd\u4e0d\u80fd\u7528
@@ -681,6 +682,10 @@ const COMMANDS = {
   uninstall: cmdUninstall,
   gui: cmdGui,
   self: cmdSelf,
+  tui: async () => {
+    const { runTui } = await import('./tui.js');
+    await runTui();
+  },
   help: printHelp,
 };
 
