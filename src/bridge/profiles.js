@@ -34,7 +34,7 @@ export const PROFILES = [
     license: '源码公开',
     send: true,
     recv: false,
-    note: 'main 分支已移除消息接收 hook 与 PB/CDN 相关代码，只能调用发送类接口；接收需靠 /QueryDB/execute 轮询',
+    note: 'main 分支已移除消息接收 hook 与 PB/CDN 相关代码，只能调用发送类接口；接收需靠 /QueryDB/execute 轮询（本项目已内置对应 version-aixed.dll，见 tools/wxhook/WeChat-Hook-main/）',
   },
   {
     wechat: '4.1.8.67',

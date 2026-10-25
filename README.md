@@ -153,11 +153,29 @@ DLL 负责注入到 `Weixin.exe`，在进程内起一个本地 HTTP 服务（默
 | 3.9.10.16 | aixed/WeChat-Hook（old_version） | 是 | 是 | 源码公开（未声明许可证） |
 | 3.9.5.81 | miloira/wxhook（开源版） | 是 | 是 | MIT |
 
-`miloira/wxhook` 开源仓库现覆盖 3.9.x 至 4.1.15.x 的大量版本（官方描述含 4.1.15.56 等）；本项目仅维护代表性版本档案，新版本可经 `node tools/check-env.js` 探测。**所有方案均为第三方维护，本项目不分发任何 DLL。**
+`miloira/wxhook` 开源仓库现覆盖 3.9.x 至 4.1.15.x 的大量版本（官方描述含 4.1.15.56 等）；本项目仅维护代表性版本档案，新版本可经 `node tools/check-env.js` 探测。
+
+**本项目内置自制 DLL（开箱即用，无需自行反编译 / 编译）**
+
+为省去自行构建，仓库 `tools/` 已附带作者自制的若干 DLL，两种获取方式任选其一：
+- **clone 自带**：`git clone` 后直接位于 `tools/wechat-hook/`、`tools/wxhook/` 下；
+- **Release 下载**：GitHub Releases 的 `v1.0.0` 页面提供同名附件。
+
+| 文件 | 来源 / 适配版本 | 发送 | 接收 | 说明 |
+|---|---|---|---|---|
+| `tools/wxhook/WeChat-Hook-main/version-aixed.dll` | aixed/WeChat-Hook(main) → **微信 4.1.10.27** | ✅ | 轮询 | 作者当前自用版本；接收靠 `/QueryDB/execute` 轮询 |
+| `tools/wxhook/mini.dll`、`mini2.dll`、`mini_c.dll`、`mini_gcc16.dll`、`version-gcc16.dll` | miloira/wxhook | ✅ | ✅ | 覆盖 3.9.x–4.1.15.x，由 `npm run check` 探测适配 |
+| `tools/wechat-hook/version.dll`、`version-592.dll` | proxy 模式通用注入 | ✅ | ✅ | 改名 `version.dll` 放入微信目录由系统加载（见[注入方式](#3-选择注入方式)） |
+| `tools/wxhook/getdbkey.dll` | 提取微信数据库密钥 | — | — | 仅 DB 轮询接收时使用 |
+| `tools/wxhook/libstdc++-6.dll`、`libwinpthread-1.dll` | MinGW 运行时依赖 | — | — | 上述 MinGW 编译的 DLL 运行时需要，已一并附带 |
+
+> 若你的微信版本不在上表，仍可按 `src/bridge/profiles.js` 的第三方方案自行获取，或等版本档案更新。所有第三方方案由相应仓库维护，许可见上文表格与 `profiles.js`。
 
 > **平台限制**：本项目**仅适用于 Windows** —— 底层依赖微信 Windows 客户端与注入式 hook DLL（`CreateRemoteThread + LoadLibraryW`）。不支持 macOS、Linux、微信 macOS 版、网页版与手机版。
 
 ### 2. 锁住微信版本（这一步不能省）
+
+> **获取对应版本的微信客户端**：本项目内置的 DLL 与微信版本强绑定（如 `version-aixed.dll` 适配 `4.1.10.27`）。官方不提供旧版安装包，可参考第三方汇总站 [微信 Windows 历史版本汇总](https://rodert.github.io/wechat-win-versions/) 获取历史版本（**非官方，下载请自行甄别安全性与合规性；本项目不托管任何微信安装包**）。
 
 微信会自动更新，而且**更新时把旧版本目录整个删掉**。后果极其迷惑：DLL 明明加载过、端口也起过，突然就全部失效。
 
