@@ -156,7 +156,7 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
   <div class="wrap">
     <div class="eyebrow">在线演示</div>
     <h2>看看 TUI 引导长什么样</h2>
-    <p class="lede" style="margin-bottom:22px">不用装微信、不用配环境，下面这个终端完整回放了 <code>autochat tui</code> 的引导过程：检测 → 锁版本 → 自动选 DLL → 配模型 → 小号 → 启动。</p>
+    <p class="lede" style="margin-bottom:22px">不用装微信、不用配环境，下面这个终端回放了 <code>autochat tui</code> 的引导过程：检测 → 锁版本 → 选 DLL → 配模型 → 小号 → proxy → 启动。<span class="dim">（流程示意：真实菜单项按本机环境动态生成；确认类步骤真实为 <code>(Y/n)</code> 文本输入，此处用菜单展示选择；proxy 默认选 n 走 inject。）</span></p>
     <div class="term">
       <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="term-title">autochat tui — 模拟演示</span></div>
       <div class="term-body" id="termBody"></div>
@@ -242,8 +242,7 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
       {menu:[{s:'Y（默认）',hl:true},{s:'n'}]}
     ]},
     { lines:[
-      {c:'ok', s:'✓ 锁住微信版本'},
-      {c:'dim', s:'已把 update 目录替换为只读文件，微信无法自动下载更新'}
+      {c:'ok', s:'✓ 锁住微信版本'}
     ]},
     { lines:[
       {c:'title', s:'检测到微信 4.1.10.27，使用内置 DLL？'},
@@ -251,8 +250,8 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
       {menu:[{s:'Y（默认）',hl:true},{s:'n'}]}
     ]},
     { lines:[
-      {c:'ok', s:'✓ 自动选 DLL'},
-      {c:'dim', s:'WX_DLL_PATH 已设为内置 version-aixed.dll'}
+      {c:'ok', s:'✓ 检测微信安装'},
+      {c:'dim', s:'已写入 WX_DLL_PATH = 内置 version-aixed.dll'}
     ]},
     { lines:[
       {c:'title', s:'选择模型来源'},
@@ -285,6 +284,11 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
       ]}
     ]},
     { lines:[
+      {c:'title', s:'是否把 DLL 部署到微信目录（proxy 模式）？'},
+      {c:'dim', s:'默认用 inject 注入（选 n）。proxy 需管理员权限，重启微信才生效'},
+      {menu:[{s:'n（默认，推荐）',hl:true},{s:'Y'}]}
+    ]},
+    { lines:[
       {c:'title', s:'保存模型配置？'},
       {menu:[{s:'Y（默认）',hl:true},{s:'n'}]}
     ]},
@@ -292,7 +296,7 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
       {c:'title', s:'准备启动'},
       {c:'dim', s:'请确认微信已登录（建议小号）。接下来会启动服务并注入微信。'},
       {c:'dim', s:'启动后，用主号给小号发“你好”验证是否自动回复。'},
-      {c:'ok', s:'✓ 配置完成，启动 autochat start …'}
+      {c:'dim', s:'启动后会进入服务进程；停止：autochat stop / pause。'}
     ]}
   ];
   var idx = 0, paused = false, frameTimer = null, lineTimers = [];
