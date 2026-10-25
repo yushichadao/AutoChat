@@ -1,15 +1,16 @@
 import path from 'node:path';
 import process from 'node:process';
-import { loadConfig, validateConfig, ROOT } from './config.js';
-import { createLogger } from './logger.js';
-import { ChatProfiles } from './chats.js';
+import { loadConfig, validateConfig } from './core/config.js';
+import { createLogger } from './core/logger.js';
+import { ChatProfiles } from './core/chats.js';
+import { ROOT } from './core/paths.js';
 import { HookLifecycle } from './bridge/hook-lifecycle.js';
 import { HookClient } from './bridge/hook-client.js';
 import { DialectStore } from './bridge/dialect.js';
 import { Receiver } from './bridge/receiver.js';
 import { buildPollPlan } from './bridge/poll-sql.js';
 import { SelfFilter } from './bridge/self-filter.js';
-import { MasterSwitch, PidFile, shouldYieldToExisting } from './bridge/switch.js';
+import { PauseState, PidFile, shouldYieldToExisting } from './core/pause.js';
 import { ContactCache } from './bridge/contacts.js';
 import { detectWeChat, isProcessAlive } from './bridge/process.js';
 import { probeHook } from './bridge/probe.js';
@@ -131,13 +132,13 @@ async function main() {
     dbBase: cfg.wechat.pollDb,
   });
 
-  // 总闸：data/paused 存在就停止回复；pid 文件给「停止服务」用
-  const masterSwitch = new MasterSwitch({
+  // 暂停状态：data/paused 存在就停止回复；pid 文件给「停止服务」用
+  const pauseState = new PauseState({
     file: path.join(cfg.dataDir, 'paused'),
     logger: createLogger('switch', cfg.logLevel),
   });
-  if (masterSwitch.isPaused()) {
-    log.warn('总闸处于暂停状态（data/paused 存在），本进程不会回复任何消息');
+  if (pauseState.isPaused()) {
+    log.warn('自动回复已暂停（data/paused 存在），本进程不会回复任何消息');
   }
 
   // 「这条是不是我自己发的」判定器
@@ -194,7 +195,7 @@ async function main() {
       selfWxid: wxid,
       profiles,
       selfFilter,
-      masterSwitch,
+      pauseState,
     });
     receiver.on('message', (msg) => {
       air.handle(msg).catch((err) => log.error('AI 回复异常', err.message));
@@ -215,7 +216,7 @@ async function main() {
       ? `｜AI 回复 ${air.stats.replied} 失败 ${air.stats.failed} 跳过 ${air.stats.skipped}` +
         ` 过滤 ${air.stats.filtered} 回声 ${air.stats.echo} 暂停 ${air.stats.paused} 会话 ${memory.size}`
       : '';
-    const gate = masterSwitch.isPaused() ? '【总闸：已暂停】' : '';
+    const gate = pauseState.isPaused() ? '【自动回复已暂停】' : '';
     log.info(
       `${gate}状态 回调 ${recv.webhook} 轮询 ${recv.poll} 去重 ${recv.dropped} 自发 ${recv.selfDropped} 拒绝 ${recv.rejected}${aiPart}`
     );

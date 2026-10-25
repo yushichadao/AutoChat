@@ -1,11 +1,14 @@
 {
   "name": "autochat",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": false,
   "type": "module",
   "description": "AutoChat：微信侧的本地 AI 助手（注入 hook + 本地模型，零运行时依赖）",
   "license": "SEE LICENSE IN LICENSE",
-  "author": "AutoChat contributors",
+  "author": "Yushichadao <yushichadao@qq.com>",
+  "maintainers": [
+    "Yushichadao <yushichadao@qq.com>"
+  ],
   "keywords": [
     "wechat",
     "bot",
@@ -24,24 +27,26 @@
   },
   "homepage": "https://github.com/yushichadao/AutoChat#readme",
   "engines": {
-    "node": ">=22"
+    "node": ">=18"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "start": "node src/cli/index.js start",
+    "dev": "node --watch src/cli/index.js start",
     "test": "node --test test/*.test.js",
     "demo": "node tools/demo.js",
-    "check": "node tools/check-env.js",
     "doctor": "node src/cli/index.js doctor",
-    "status": "node src/cli/index.js status",
     "setup": "node src/cli/index.js setup",
-    "model:test": "node src/cli/index.js test",
-    "model:list": "node src/cli/index.js models",
     "gui": "node src/cli/index.js gui",
+    "status": "node src/cli/index.js status",
+    "logs": "node src/cli/index.js logs",
+    "version": "node src/cli/index.js version",
+    "model": "node src/cli/index.js model",
+    "model-service": "node src/cli/index.js model service",
+    "install": "node src/cli/index.js install",
+    "uninstall": "node src/cli/index.js uninstall",
     "pause": "node src/cli/index.js pause",
     "resume": "node src/cli/index.js resume",
-    "stop": "node src/cli/index.js stop",
-    "uninstall": "node tools/uninstall.js"
+    "stop": "node src/cli/index.js stop"
   },
   "bin": {
     "autochat": "src/cli/index.js"
@@ -50,10 +55,13 @@
   "files": [
     "src/",
     "tools/*.js",
+    "tools/*.bat",
     "test/",
+    "docs/*.md",
     ".env.example",
     "config.example.json",
     "README.md",
+    "CHANGELOG.md",
     "LEGAL.md",
     "LICENSE"
   ]

@@ -3,10 +3,10 @@ import { TriggerPolicy } from './trigger.js';
 import { RateLimiter } from './limiter.js';
 import { buildMessages, DEFAULT_PERSONA } from './prompt.js';
 import { Responder, stripMarkdown, splitReply } from './responder.js';
-import { ChatProfiles } from '../chats.js';
+import { ChatProfiles } from '../core/chats.js';
 import { AIClient } from './client.js';
 import path from 'node:path';
-import { ROOT } from '../config.js';
+import { ROOT } from '../core/paths.js';
 
 /**
  * 微信侧的 AI 回复总入口。
@@ -20,7 +20,7 @@ import { ROOT } from '../config.js';
  * enabled / groupReply / triggerPrefix / personaFile，只在那个会话生效。
  */
 export class AIReply {
-  constructor({ cfg, ai, memory, hook, logger, selfWxid = '', profiles = null, selfFilter = null, masterSwitch = null }) {
+  constructor({ cfg, ai, memory, hook, logger, selfWxid = '', profiles = null, selfFilter = null, pauseState = null }) {
     this.cfg = cfg;
     this.ai = ai;
     this.memory = memory;
@@ -30,8 +30,8 @@ export class AIReply {
     /** sender | id —— 判定「这条是不是我自己发的」 */
     this.selfMode = cfg.selfMode || 'sender';
     this.selfFilter = selfFilter;
-    /** 总闸：暂停时不回复任何消息 */
-    this.masterSwitch = masterSwitch;
+    /** 暂停状态：暂停时不回复任何消息（仍接收、仍记日志） */
+    this.pauseState = pauseState;
 
     this.trigger = new TriggerPolicy(cfg);
     this.limiter = new RateLimiter(cfg);
@@ -132,11 +132,11 @@ export class AIReply {
   }
 
   async handle(msg) {
-    // 总闸：配置关掉或哨兵文件存在，就一条都不回。
+    // 暂停状态：哨兵文件存在就一条都不回（配置层的开关在启动时就决定了要不要建这条流水线）。
     // 这是「随时能拉下」的硬保证 —— 宁可不回，也不能失控刷屏。
-    if (this.cfg.masterSwitch === false || this.masterSwitch?.isPaused()) {
+    if (this.pauseState?.isPaused()) {
       this.stats.paused += 1;
-      this.log.info?.('总闸处于关闭状态，本次不回复');
+      this.log.info?.('自动回复已暂停，本次不回复');
       return null;
     }
 
@@ -165,7 +165,7 @@ export class AIReply {
     const limited = this.limiter.check(msg);
     if (limited) {
       this.stats.skipped += 1;
-      this.log.debug?.(`${msg.chatId} 触发限流(${limited})，跳过`);
+      this.log.info(`${msg.chatId} 触发限流(${limited})，本次不回复`);
       return null;
     }
 

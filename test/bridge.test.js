@@ -7,7 +7,7 @@ import zlib from 'node:zlib';
 import { decodeDbContent } from '../src/protocol/db-decode.js';
 import { chatTable, buildPollSql, buildRowSql, buildPollPlan } from '../src/bridge/poll-sql.js';
 import { SelfFilter } from '../src/bridge/self-filter.js';
-import { MasterSwitch, PidFile, shouldYieldToExisting } from '../src/bridge/switch.js';
+import { PauseState, PidFile, shouldYieldToExisting } from '../src/core/pause.js';
 import { Memory } from '../src/ai/memory.js';
 
 test('库里的 content：明文原样返回', () => {
@@ -87,10 +87,10 @@ test('自消息判定：内容回声兜底', () => {
   assert.equal(f.isSelfMessage({ chatId: 'c', id: '98', senderId: 'wxid_me', text: '别的话' }), false);
 });
 
-test('总闸：哨兵文件存在即暂停，删掉即恢复', () => {
+test('暂停状态：哨兵文件存在即暂停，删掉即恢复', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'autochat-switch-'));
   const file = path.join(dir, 'paused');
-  const sw = new MasterSwitch({ file });
+  const sw = new PauseState({ file });
 
   assert.equal(sw.isPaused(), false);
   assert.equal(sw.pause('测试').ok, true);

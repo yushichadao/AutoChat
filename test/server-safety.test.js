@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { safeEnv, CHAT_FIELDS, startGui } from '../src/setup/server.js';
+import { safeEnv, CHAT_FIELDS, startGui } from '../src/gui/server.js';
 
 test('safeEnv 把密钥类脱敏为布尔，其余配置原样保留', () => {
   const out = safeEnv({

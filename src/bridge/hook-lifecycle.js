@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { createLogger } from '../logger.js';
+import { createLogger } from '../core/logger.js';
 import { detectWeChat, listWeChatProcesses, hasModuleLoaded, isPortOpen } from './process.js';
 import { injectDll, deployProxyDll, killWeChat, launchWeChat, isElevated } from './injector.js';
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ChatProfiles } from '../src/chats.js';
+import { ChatProfiles } from '../src/core/chats.js';
 
 test('未配置的会话返回空覆盖项', () => {
   const p = new ChatProfiles({ chats: {} });

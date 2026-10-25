@@ -15,6 +15,7 @@ config.json
 persona-*.txt
 test-out.txt
 test-err.txt
+.vscode/
 
 # ---------------------------------------------------------------------------
 # 上一代 Python 实现遗留（已不参与运行，保留在本地供查阅，不进版本库）
@@ -30,5 +31,8 @@ tools/wx-ui/
 # 构建 hook DLL 所需的上游仓库请自行 clone，见 tools/README.md
 # ---------------------------------------------------------------------------
 tools/mingw64/
-tools/wechat-hook/
+# tools/wxhook/ 与 tools/wechat-hook/ 内已有若干 hook DLL **随仓库入库**
+#（见 docs/DLL-SOURCES.md）；但这两个目录里还有大量上游源码 / 构建脚本，
+# 不应入库。整体忽略即可：已被跟踪的 .dll 不受 ignore 影响，仍保留在版本库。
 tools/wxhook/
+tools/wechat-hook/

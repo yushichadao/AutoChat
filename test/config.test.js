@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadConfig, validateConfig } from '../src/config.js';
+import { loadConfig, validateConfig } from '../src/core/config.js';
 
 function tmpRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'autochat-cfg-'));

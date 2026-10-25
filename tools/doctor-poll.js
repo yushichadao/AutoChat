@@ -9,7 +9,7 @@
  *   node tools/doctor-poll.js                # 用 .env 的配置
  *   node tools/doctor-poll.js --chat 123@chatroom --limit 5
  */
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../src/core/config.js';
 import { HookClient } from '../src/bridge/hook-client.js';
 import { buildPollPlan, buildPollSql, buildRowSql, candidateDbs } from '../src/bridge/poll-sql.js';
 import { normalizeDbRow } from '../src/protocol/normalize.js';

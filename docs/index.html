@@ -99,7 +99,7 @@
     <p class="lede">把本机登录的微信账号接到 OpenAI 兼容模型上。它只做一件事：收到微信消息 → 按策略交给模型 → 把回复发回微信。所有行为发生在你自己的账号里，模型可以跑在本机，也可以接云端。</p>
     <div class="cta">
       <a class="btn btn-primary" href="https://github.com/yushichadao/AutoChat">在 GitHub 查看</a>
-      <a class="btn btn-ghost" href="#start">3 步跑起来</a>
+      <a class="btn btn-ghost" href="#start">两分钟跑起来</a>
     </div>
   </div>
 </header>
@@ -110,10 +110,10 @@
     <h2>它帮你做什么</h2>
     <div class="grid" style="margin-top:26px">
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1.5"/><path d="M9 13v2"/><path d="M15 13v2"/></svg></div><h3>本地 AI 自动回复</h3><p>接 OpenAI 兼容模型，本地或云端都行。群聊 / 私聊分别施策，支持触发前缀、@ 认可、人设与上下文记忆。</p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 10-4-2.4-7-5.5-7-10V6z"/></svg></div><h3>总闸随时暂停</h3><p>一行命令 <code>autochat pause</code> 立刻停掉自动回复（仍接收、仍记录），<code>resume</code> 恢复。<b>自动化最怕停不下来，所以它最好找。</b></p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="8.5" y="3" width="7" height="7" rx="1"/></svg></div><h3>零运行时依赖</h3><p>纯 Node.js ESM，无构建步骤、无 TypeScript、无框架。克隆即跑，<code>npm test</code> 108 项测试全绿。</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 10-4-2.4-7-5.5-7-10V6z"/></svg></div><h3>一键暂停自动回复</h3><p>一行命令 <code>autochat pause</code> 立刻停掉自动回复（仍接收、仍记录），<code>resume</code> 恢复。<b>自动化最怕停不下来，所以它最好找。</b></p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="8.5" y="3" width="7" height="7" rx="1"/></svg></div><h3>零运行时依赖</h3><p>纯 Node.js ESM，无构建步骤、无 TypeScript、无框架。克隆即跑，<code>npm test</code> 123 项测试全绿。</p></div>
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg></div><h3>图形化配置器</h3><p>不懂命令行也能用：<code>autochat gui</code> 打开网页配置模型、会话、护栏，安装 / 卸载、状态一目了然。</p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5"/><path d="M15 3v5"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v4"/></svg></div><h3>本机 hook 注入</h3><p>通过第三方 hook DLL 读写本机微信进程收发消息。DLL 由你自行获取，本项目<b>不分发任何第三方二进制</b>。</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5"/><path d="M15 3v5"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v4"/></svg></div><h3>本机 hook 注入</h3><p>通过第三方 hook DLL 读写本机微信进程收发消息。仓库随附部分 hook DLL（作者自制与第三方来源，来源与许可见 <code>docs/DLL-SOURCES.md</code>）。</p></div>
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M8 21h8"/><path d="M6 7h12"/><path d="M6 7L3 13a3 3 0 0 0 6 0z"/><path d="M18 7l3 6a3 3 0 0 1-6 0z"/></svg></div><h3>内置合规护栏</h3><p>webhook 鉴权、自身消息过滤、限流、并发上限、否定语义拒绝——挡住技术事故，并明确合法使用边界。</p></div>
     </div>
   </div>
@@ -122,17 +122,17 @@
 <section id="start" style="background:var(--bg-soft)">
   <div class="wrap">
     <div class="eyebrow">快速开始</div>
-    <h2>3 步跑起来</h2>
+    <h2>两分钟跑起来</h2>
     <div class="grid" style="margin-top:22px">
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div><h3>TUI 一站式引导（新手推荐）</h3><p>终端里照着答，自动检测、锁版本、选 DLL、配模型、设小号、启动一条龙。<code>autochat tui</code>。下方有在线演示。</p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg></div><h3>CLI 命令行</h3><p>有实力的用脚本化：<code>autochat install --lock</code>、<code>setup</code>、<code>start</code>、<code>doctor</code> 自由组合。</p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg></div><h3>GUI 配置器</h3><p>不懂命令行也能用：<code>autochat gui</code> 网页改模型、会话、护栏，一键锁版本、自动选 DLL。</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div><h3>初始化向导（新手推荐）</h3><p>照着答就行：检测环境 → 锁定微信版本 → 自动匹配 hook DLL → 配模型 → 设小号 → 启动建议。<code>autochat setup</code>。下方有在线演示。</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg></div><h3>命令行</h3><p>有实力的用脚本化：<code>autochat install --lock</code>、<code>setup</code>、<code>start</code>、<code>doctor</code> 自由组合。</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg></div><h3>图形化配置器</h3><p>不懂命令行也能用：<code>autochat gui</code> 网页改模型、会话、护栏，一键锁版本、自动选 DLL。</p></div>
     </div>
-    <p class="lede" style="margin-top:18px;font-size:14.5px">想先看看 TUI 长什么样？<a href="#demo" style="color:var(--accent)">点这里看在线模拟演示 →</a></p>
+    <p class="lede" style="margin-top:18px;font-size:14.5px">想先看看初始化向导长什么样？<a href="#demo" style="color:var(--accent)">点这里看在线模拟演示 →</a></p>
     <div class="steps" style="margin-top:26px;max-width:760px">
       <div class="step"><div>
         <h3>① 准备：小号方案</h3>
-        <p class="lede" style="font-size:15px">建议用一个小号 / 备用号接收消息，避免机器人把<b>自己的回复</b>当成别人的提问而自问自答。锁住微信版本，准备 hook DLL（见仓库说明）。</p>
+        <p class="lede" style="font-size:15px">建议用一个小号 / 备用号接收消息，避免 AutoChat 把<b>自己的回复</b>当成别人的提问而自问自答。锁住微信版本，准备 hook DLL（见仓库说明）。</p>
       </div></div>
       <div class="step"><div>
         <h3>② 配置模型</h3>
@@ -145,8 +145,8 @@ autochat gui</code></pre>
         <h3>③ 启动与体检</h3>
         <p style="color:var(--dim)">启动服务，用 doctor 按提示把 hook DLL 就位。</p>
         <pre><code>autochat start        # 前台启动服务
-autochat doctor       # 环境体检：为什么机器人不理我
-autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</code></pre>
+autochat doctor       # 环境体检：为什么 AutoChat 不理我
+autochat status       # 状态总览（服务 / 自动回复 / 配置 / 上下文）</code></pre>
       </div></div>
     </div>
     <p class="lede" style="margin-top:22px;font-size:14.5px">完整文档见 <a href="https://github.com/yushichadao/AutoChat#readme" style="color:var(--accent)">README</a>。不需要 DLL 与 API Key 也能 <code>npm run demo</code> 跑通全链路。</p>
@@ -156,14 +156,14 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
 <section id="demo">
   <div class="wrap">
     <div class="eyebrow">在线演示</div>
-    <h2>看看 TUI 引导长什么样</h2>
-    <p class="lede" style="margin-bottom:22px">不用装微信、不用配环境，下面这个终端回放了 <code>autochat tui</code> 的引导过程：检测 → 锁版本 → 选 DLL → 配模型 → 小号 → proxy → 启动。<span class="dim">（流程示意：真实菜单项按本机环境动态生成；确认类步骤真实为 <code>(Y/n)</code> 文本输入，此处用菜单展示选择；proxy 默认选 n 走 inject。）</span></p>
+    <h2>看看初始化向导长什么样</h2>
+    <p class="lede" style="margin-bottom:22px">不用装微信、不用配环境，下面这个终端回放了 <code>autochat setup</code> 的引导过程：检测 → 锁版本 → 选 DLL → 配模型 → 小号 → proxy → 启动。<span class="dim">（流程示意：真实菜单项按本机环境动态生成；确认类步骤真实为 <code>(Y/n)</code> 文本输入，此处用菜单展示选择；proxy 默认选 n 走 inject。）</span></p>
     <div class="term">
-      <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="term-title">autochat tui — 模拟演示</span></div>
+      <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="term-title">autochat setup — 模拟演示</span></div>
       <div class="term-body" id="termBody"></div>
       <div class="term-ctrl">
-        <button class="btn btn-ghost" id="tuiReplay"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>重播</button>
-        <button class="btn btn-ghost" id="tuiPause"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1.5"/><rect x="14" y="4" width="4" height="16" rx="1.5"/></svg>暂停</button>
+        <button class="btn btn-ghost" id="cliReplay"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>重播</button>
+        <button class="btn btn-ghost" id="cliPause"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1.5"/><rect x="14" y="4" width="4" height="16" rx="1.5"/></svg>暂停</button>
       </div>
     </div>
   </div>
@@ -205,7 +205,7 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
   <div class="wrap">
     <div>
       <div class="brand" style="font-size:16px">Auto<span>Chat</span></div>
-      <p style="margin-top:8px;max-width:420px">微信侧的本地 AI 助手。与腾讯 / 微信及其运营方无隶属或授权关系，仅供学习与技术研究，按「现状」提供，风险自负。</p>
+      <p style="margin-top:8px;max-width:420px">微信侧的本地 AI 助手。与腾讯 / 微信及其运营方无隶属或授权关系，仅供学习与技术研究，按「现状」提供，风险自负。</p><p style="margin-top:10px;font-size:13px">作者 / 维护者：Yushichadao · <a href="mailto:yushichadao@qq.com" style="color:var(--accent)">yushichadao@qq.com</a> · v2.0.0</p>
     </div>
     <div style="display:flex;gap:26px;flex-wrap:wrap">
       <a href="https://github.com/yushichadao/AutoChat">GitHub</a>
@@ -213,6 +213,9 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
       <a href="LEGAL.md">LEGAL</a>
       <a href="SECURITY.md">Security</a>
       <a href="LICENSE">License</a>
+      <a href="docs/GETTING-STARTED.md">上手</a>
+      <a href="docs/FAILURE-MODES.md">排障</a>
+      <a href="docs/GLOSSARY.md">术语</a>
     </div>
   </div>
 </footer>
@@ -220,15 +223,15 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
 <script>
 (function(){
   var term = document.getElementById('termBody');
-  var replayBtn = document.getElementById('tuiReplay');
-  var pauseBtn = document.getElementById('tuiPause');
+  var replayBtn = document.getElementById('cliReplay');
+  var pauseBtn = document.getElementById('cliPause');
   if(!term) return;
   var FRAMES = [
     { lines:[
-      {c:'title', s:'AutoChat 引导（一站式自动配置）'},
+      {c:'title', s:'AutoChat 初始化向导'},
       {c:'dim', s:'全程在你自己电脑上，不连接外部平台，不碰他人账号。'},
       {c:'dim', s:'模型可选手本地（零出网）或云端（只发到你指定的地址）。'},
-      {c:'dim', s:'用小号隔离主号，随时可 autochat pause 暂停 / uninstall 卸载。'}
+      {c:'dim', s:'用小号隔离主号，随时可 autochat pause 暂停自动回复 / uninstall 卸载。'}
     ]},
     { lines:[
       {c:'title', s:'环境体检结果'},

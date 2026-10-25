@@ -89,7 +89,7 @@ export function explainError(err, ctx = {}) {
 export async function listModels({ baseUrl, apiKey = '', timeoutMs = 8000 } = {}) {
   const base = normalizeBase(baseUrl);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null; // 0 = 不限时
   const candidates = [`${base}/models`, `${base}/v1/models`, `${base}/api/tags`];
   try {
     let lastError = '';
@@ -144,7 +144,7 @@ export async function listModels({ baseUrl, apiKey = '', timeoutMs = 8000 } = {}
 export async function testChat({ baseUrl, apiKey = '', model, timeoutMs = 20000 } = {}) {
   const base = normalizeBase(baseUrl);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null; // 0 = 不限时
   const started = Date.now();
   try {
     const res = await fetch(`${base}/chat/completions`, {

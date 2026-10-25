@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readEnvFile, setEnvValues, getEnvValue, writeEnvFromTemplate } from '../src/cli/env-file.js';
+import { readEnvFile, setEnvValues, getEnvValue, writeEnvFromTemplate } from '../src/core/env-file.js';
 import { ROOT } from './helpers.js';
 
 function tmpFile(name = '.env') {

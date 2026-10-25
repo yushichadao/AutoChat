@@ -7,7 +7,7 @@
 **请不要在公开 issue / PR 中报告漏洞** —— 公开即意味着漏洞在被修复前已对所有人可见。
 
 - 打开本仓库 **Security → Report a vulnerability** 提交私密报告；
-- 平台不可用时，私下联系维护者（见仓库主页联系方式）。
+- 平台不可用时，私下联系维护者：Yushichadao · yushichadao@qq.com。
 
 报告请包含：
 

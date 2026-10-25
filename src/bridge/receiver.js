@@ -224,32 +224,45 @@ export class Receiver extends EventEmitter {
       this.polling = true;
       try {
         for (const p of plan) {
-          // 1) 轻量批次：只拿 local_id（hook 对「多列 + message_content + WHERE」查询会返回空）
-          const idRows = await this.queryInAnyDb(buildPollSql(p.chatId, p.limit || 30), p.db);
-          if (!idRows.length) continue;
-          const mark = this.watermark.get(p.chatId) || 0;
-          const newIds = idRows
-            .map((r) => Number(r.local_id ?? r.msgid))
-            .filter((id) => Number.isFinite(id) && id > mark)
-            .sort((a, b) => a - b);
-          if (!newIds.length) continue;
+          // 两条取数路径：
+          //   ① 自动计划（按会话生成）：先取 local_id，再逐条取完整行，最后解析发送者。
+          //      分三步是因为 hook 对「多列 + message_content + WHERE」的批量查询会整批返回空。
+          //   ② 用户手写的 WX_POLL_SQL：一条 SQL 直接返回完整行，按约定别名解析。
+          //      这条路径**必须原样使用用户写的 SQL**，不能替换成自动生成的语句。
+          const manual = !p.chatId;
+          let rows = [];
+          let nameMap = new Map();
 
-          // 2) 逐条按 local_id 取完整单行（正文 / 发送者在此获取；单行查询在 hook 下稳定）
-          const rows = [];
-          const rids = new Set();
-          for (const id of newIds) {
-            const rowSql = buildRowSql(p.chatId, id);
-            if (!rowSql) continue;
-            const rr = await this.queryInAnyDb(rowSql, p.db);
-            if (rr.length) {
-              rows.push(rr[0]);
-              if (rr[0].rid != null) rids.add(String(rr[0].rid));
+          if (manual) {
+            rows = await this.queryInAnyDb(p.sql, p.db);
+            if (!rows.length) continue;
+          } else {
+            // 1) 轻量批次：只拿 local_id（hook 对「多列 + message_content + WHERE」查询会返回空）
+            const idRows = await this.queryInAnyDb(buildPollSql(p.chatId, p.limit || 30), p.db);
+            if (!idRows.length) continue;
+            const mark = this.watermark.get(p.chatId) || 0;
+            const newIds = idRows
+              .map((r) => Number(r.local_id ?? r.msgid))
+              .filter((id) => Number.isFinite(id) && id > mark)
+              .sort((a, b) => a - b);
+            if (!newIds.length) continue;
+
+            // 2) 逐条按 local_id 取完整单行（正文 / 发送者在此获取；单行查询在 hook 下稳定）
+            const rids = new Set();
+            for (const id of newIds) {
+              const rowSql = buildRowSql(p.chatId, id);
+              if (!rowSql) continue;
+              const rr = await this.queryInAnyDb(rowSql, p.db);
+              if (rr.length) {
+                rows.push(rr[0]);
+                if (rr[0].rid != null) rids.add(String(rr[0].rid));
+              }
             }
-          }
-          if (!rows.length) continue;
+            if (!rows.length) continue;
 
-          // 3) 批量把 real_sender_id 解析成 wxid（Name2Id 单独查，避免 JOIN 触发 hook 空返回）
-          const nameMap = await this.resolveSenders([...rids]);
+            // 3) 批量把 real_sender_id 解析成 wxid（Name2Id 单独查，避免 JOIN 触发 hook 空返回）
+            nameMap = await this.resolveSenders([...rids]);
+          }
 
           const selfId = this.selfId;
           const selfMode = this.selfMode;
@@ -263,8 +276,8 @@ export class Receiver extends EventEmitter {
             await this.contacts.lookup([...ids]);
           }
           for (const r of rows) {
-            r.roomid = p.chatId; // 在 JS 里补 roomid，避免 SQL 常量触发 hook 空返回
-            r.wxid = nameMap.get(String(r.rid)) || '';
+            r.roomid = p.roomid ?? p.chatId; // 在 JS 里补 roomid，避免 SQL 常量触发 hook 空返回
+            if (!manual) r.wxid = nameMap.get(String(r.rid)) || '';
             const msg = normalizeDbRow(r, { selfId, selfMode });
             if (!msg) continue;
             const senderName = this.contacts?.nameOf(msg.senderId);

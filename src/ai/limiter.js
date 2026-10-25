@@ -12,7 +12,8 @@ export class RateLimiter {
   constructor(cfg = {}) {
     this.cooldownMs = Number(cfg.cooldownMs) || 0;
     this.maxPerHour = Number(cfg.maxPerHour) || 0;
-    this.maxConcurrent = Math.max(1, Number(cfg.maxConcurrent) || 2);
+    const mc = Number(cfg.maxConcurrent);
+    this.maxConcurrent = Number.isFinite(mc) && mc >= 0 ? mc : 2; // 0 = 不设并发上限
     /** chatId -> 上次回复时刻 */
     this.lastReplyAt = new Map();
     /** 每小时窗口内的时间戳列表 */
@@ -33,7 +34,7 @@ export class RateLimiter {
       if (this.replyTimes.length >= this.maxPerHour) return 'quota';
     }
 
-    if (this.inflight.size >= this.maxConcurrent) return 'concurrent';
+    if (this.maxConcurrent >= 1 && this.inflight.size >= this.maxConcurrent) return 'concurrent';
     return null;
   }
 

@@ -10,7 +10,8 @@ export class AIClient {
     this.baseUrl = normalizeBase(baseUrl);
     this.apiKey = apiKey || '';
     this.model = model || 'hy3';
-    this.timeoutMs = timeoutMs || 25000;
+    // 0 / 负数 / 未填 = 不限时；正数才设超时
+    this.timeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : null;
     this.log = logger;
     this.stats = { calls: 0, failed: 0, totalMs: 0 };
   }
@@ -29,11 +30,11 @@ export class AIClient {
       messages,
       stream: false,
     };
-    if (Number.isFinite(maxTokens)) body.max_tokens = maxTokens;
+    if (Number.isFinite(maxTokens) && maxTokens > 0) body.max_tokens = maxTokens; // 0 = 不限制 token 数
     if (Number.isFinite(temperature)) body.temperature = temperature;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timer = this.timeoutMs && this.timeoutMs > 0 ? setTimeout(() => controller.abort(), this.timeoutMs) : null;
     const started = Date.now();
 
     try {
