@@ -99,6 +99,11 @@ function gateCard() {
 
 function acctCard() {
   const w = state.config.wechat;
+  const ver = state.wechatVersion;
+  const locked = state.versionLocked;
+  const verHtml = ver
+    ? `<b>${esc(ver)}</b> ${locked ? '<span class="tag rec">已锁定</span>' : '<span class="tag must">未锁定</span>'}`
+    : '<span class="tag opt">未检测到微信</span>';
   return card(
     '小号准备（重要）',
     `<p class="hint">电脑微信必须扫码登录，所以<b>电脑上登录的号 == 手机上的号</b>。如果就用这个号在群里提问，机器人分不清「你发的」和「它发的」，会把你的话当噪音丢掉 —— 表现就是「机器人装死」。</p>
@@ -109,12 +114,19 @@ function acctCard() {
        <li>回到本页把「自消息判定」改成 <code>sender</code>（最稳），或保留 <code>id</code></li>
      </ol>
      <div class="grid">
+       <div style="grid-column:1/-1">微信版本（DLL 与版本强绑定，版本一变就失效）：${verHtml}
+         <button type="button" class="btn" id="btnLockWechat"${locked ? ' disabled' : ''}>${locked ? '已锁定' : '锁定版本（阻断自动更新）'}</button></div>
        <label>自消息判定<select id="selfMode">
          <option value="sender"${w.selfMode === 'sender' ? ' selected' : ''}>sender（按 wxid 过滤，小号用）</option>
          <option value="id"${w.selfMode === 'id' ? ' selected' : ''}>id（按已发消息 id 过滤，同号用）</option>
        </select></label>
        ${field('本机 wxid', w.selfId, 'selfId', 'text', 'wxid_xxx')}
        ${field('监听会话', w.pollChats.join(','), 'pollChats', 'text', '123456@chatroom')}
+       <label>hook DLL 路径（WX_DLL_PATH）
+         <div class="filepick">
+           <input id="dllPath" type="text" value="${esc(w.dllPath ?? '')}" placeholder="tools/wxhook/WeChat-Hook-main/version-aixed.dll" autocomplete="off">
+           <button type="button" class="btn" id="btnAutoDll">自动检测</button>
+         </div></label>
      </div>
      <div class="row end"><button class="btn primary" id="btnSaveWechat">保存会话配置</button></div>`, '必须'
   );
@@ -600,10 +612,32 @@ function bind() {
       WX_SELF_MODE: val('selfMode'),
       WX_SELF_ID: val('selfId'),
       WX_POLL_CHATS: val('pollChats'),
+      WX_DLL_PATH: val('dllPath'),
     };
     await api('/api/env', { method: 'POST', body: JSON.stringify({ values }) });
     alert('已保存，改动需要重启服务后生效');
     refresh();
+  });
+
+  on('btnLockWechat', async () => {
+    if (!confirm('锁定微信版本会阻止微信自动更新（版本一变 DLL 就失效）。确定？')) return;
+    const r = await api('/api/lock', { method: 'POST' });
+    if (!r.ok) alert('锁定失败：' + (r.detail || ''));
+    refresh();
+  });
+
+  on('btnAutoDll', async () => {
+    const btn = document.getElementById('btnAutoDll');
+    if (btn) btn.textContent = '检测中…';
+    const r = await api('/api/autodll', { method: 'POST' });
+    if (btn) btn.textContent = '自动检测';
+    if (r.path) {
+      const inp = document.getElementById('dllPath');
+      if (inp) inp.value = r.path;
+      alert('已选内置 DLL：' + r.path + (r.version ? '（微信 ' + r.version + '）' : ''));
+    } else {
+      alert('未检测到匹配的内置 DLL' + (r.version ? '（微信 ' + r.version + '）' : '') + '。请手动指定 WX_DLL_PATH');
+    }
   });
 
   on('btnClearAllCtx', async () => {

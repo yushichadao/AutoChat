@@ -9,7 +9,8 @@ import { readEnvFile, setEnvValues } from '../cli/env-file.js';
 import { diagnose } from './diagnose.js';
 import { groupedProviders } from '../ai/providers.js';
 import { listModels, testChat, discoverLocal, reviewConfig } from '../ai/probe.js';
-import { install, uninstall, installStatus } from './installer.js';
+import { install, uninstall, installStatus, lockWeChatUpdate, resolveBuiltinDll } from './installer.js';
+import { detectWeChat } from '../bridge/process.js';
 import { isRunning, killProcess, ps, wmiCreate } from './win.js';
 import { spawn, spawnSync } from 'node:child_process';
 import { HookClient } from '../bridge/hook-client.js';
@@ -163,12 +164,21 @@ async function attachContactNames(rootDir, memory, chats) {
   }
 }
 
+/** 微信 update 目录是否被替换成只读文件（锁版本标志）。 */
+async function isVersionLocked() {
+  const up = path.join(process.env.APPDATA || '', 'Tencent', 'xwechat', 'update');
+  if (!fs.existsSync(up)) return false;
+  const { out } = await ps(`(Get-Item -LiteralPath '${String(up).replace(/'/g, "''")}' -ErrorAction SilentlyContinue).IsReadOnly`);
+  return String(out).trim() === 'True';
+}
+
 /** 统一给界面用的状态快照。 */
 export async function buildState(rootDir) {
   const cfg = loadConfig({ rootDir });
   const sw = new MasterSwitch({ file: path.join(cfg.dataDir, 'paused') });
   const pid = new PidFile({ file: path.join(cfg.dataDir, 'autochat.pid') }).read();
   const inst = await installStatus({ rootDir });
+  const wechat = await detectWeChat('').catch(() => null);
 
   let memory = [];
   const memFile = path.join(cfg.dataDir, 'ai-memory.json');
@@ -232,6 +242,8 @@ export async function buildState(rootDir) {
         installDir: cfg.wechat.installDir,
       },
     },
+    wechatVersion: wechat?.version || null,
+    versionLocked: await isVersionLocked(),
   };
 }
 
@@ -343,6 +355,19 @@ async function handleApi(req, res, url, rootDir) {
     }
     const r = setEnvValues(envFile(rootDir), updates);
     return json(res, 200, { ok: true, changed: r.changed, state: await buildState(rootDir) });
+  }
+
+  // ── 锁住微信版本（阻断自动更新）──
+  if (p === '/api/lock' && req.method === 'POST') {
+    const r = await lockWeChatUpdate();
+    return json(res, 200, { ...r, state: await buildState(rootDir) });
+  }
+
+  // ── 按微信版本自动选内置 DLL ──
+  if (p === '/api/autodll' && req.method === 'POST') {
+    const wechat = await detectWeChat('').catch(() => null);
+    const builtin = wechat?.version ? resolveBuiltinDll(wechat.version, rootDir) : null;
+    return json(res, 200, { version: wechat?.version || null, path: builtin, state: await buildState(rootDir) });
   }
 
   if (p === '/api/chats' && req.method === 'POST') {
