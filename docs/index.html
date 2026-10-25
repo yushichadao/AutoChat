@@ -56,6 +56,24 @@
   footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:18px}
   footer a:hover{color:var(--accent)}
   @media(max-width:560px){.navlinks{display:none}}
+  /* 模拟终端 */
+  .term{max-width:840px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#0a0b0e;font-family:"SF Mono",Consolas,Menlo,monospace}
+  .term-bar{display:flex;align-items:center;gap:7px;padding:10px 14px;background:#15171d;border-bottom:1px solid var(--line)}
+  .term-dot{width:11px;height:11px;border-radius:50%;background:#33373f}
+  .term-dot:nth-child(1){background:#ff5f57}.term-dot:nth-child(2){background:#febc2e}.term-dot:nth-child(3){background:#28c840}
+  .term-title{margin-left:8px;color:var(--dim);font-size:12.5px}
+  .term-body{padding:18px 20px;min-height:380px;font-size:13.5px;line-height:1.75;white-space:pre-wrap}
+  .term-line{opacity:0;animation:fadein .25s forwards}
+  @keyframes fadein{to{opacity:1}}
+  .term-line.dim{color:var(--dim)}
+  .term-line.ok{color:#28c840}
+  .term-line.warn{color:var(--warn)}
+  .term-line.title{color:var(--accent);font-weight:700;margin-top:6px}
+  .term-menu{margin:4px 0 2px}
+  .term-menu>div{color:var(--dim);padding:1px 0}
+  .term-menu .hl{color:var(--accent);background:var(--accent-weak);border-radius:4px;padding:1px 6px;display:inline-block}
+  .term-ctrl{display:flex;gap:10px;padding:12px 14px;border-top:1px solid var(--line);background:#15171d}
+  .term-ctrl .btn{font-size:13px;padding:7px 14px}
 </style>
 </head>
 <body>
@@ -67,6 +85,7 @@
       <a href="#features">能力</a>
       <a href="#start">快速开始</a>
       <a href="#compliance">合规与安全</a>
+      <a href="#demo">演示</a>
       <a href="https://github.com/yushichadao/AutoChat">GitHub</a>
     </div>
   </div>
@@ -103,6 +122,12 @@
   <div class="wrap">
     <div class="eyebrow">快速开始</div>
     <h2>3 步跑起来</h2>
+    <div class="grid" style="margin-top:22px">
+      <div class="card"><div class="ico">🚀</div><h3>TUI 一站式引导（新手推荐）</h3><p>终端里照着答，自动检测、锁版本、选 DLL、配模型、设小号、启动一条龙。<code>autochat tui</code>。下方有在线演示。</p></div>
+      <div class="card"><div class="ico">⌨️</div><h3>CLI 命令行</h3><p>有实力的用脚本化：<code>autochat install --lock</code>、<code>setup</code>、<code>start</code>、<code>doctor</code> 自由组合。</p></div>
+      <div class="card"><div class="ico">🖥️</div><h3>GUI 配置器</h3><p>不懂命令行也能用：<code>autochat gui</code> 网页改模型、会话、护栏，一键锁版本、自动选 DLL。</p></div>
+    </div>
+    <p class="lede" style="margin-top:18px;font-size:14.5px">想先看看 TUI 长什么样？<a href="#demo" style="color:var(--accent)">点这里看在线模拟演示 →</a></p>
     <div class="steps" style="margin-top:26px;max-width:760px">
       <div class="step"><div>
         <h3>① 准备：小号方案</h3>
@@ -124,6 +149,22 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
       </div></div>
     </div>
     <p class="lede" style="margin-top:22px;font-size:14.5px">完整文档见 <a href="https://github.com/yushichadao/AutoChat#readme" style="color:var(--accent)">README</a>。不需要 DLL 与 API Key 也能 <code>npm run demo</code> 跑通全链路。</p>
+  </div>
+</section>
+
+<section id="demo">
+  <div class="wrap">
+    <div class="eyebrow">在线演示</div>
+    <h2>看看 TUI 引导长什么样</h2>
+    <p class="lede" style="margin-bottom:22px">不用装微信、不用配环境，下面这个终端完整回放了 <code>autochat tui</code> 的引导过程：检测 → 锁版本 → 自动选 DLL → 配模型 → 小号 → 启动。</p>
+    <div class="term">
+      <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="term-title">autochat tui — 模拟演示</span></div>
+      <div class="term-body" id="termBody"></div>
+      <div class="term-ctrl">
+        <button class="btn btn-ghost" id="tuiReplay">↺ 重播</button>
+        <button class="btn btn-ghost" id="tuiPause">⏸ 暂停</button>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -175,5 +216,124 @@ autochat status       # 状态总览（服务 / 总闸 / 配置 / 上下文）</
   </div>
 </footer>
 
+<script>
+(function(){
+  var term = document.getElementById('termBody');
+  var replayBtn = document.getElementById('tuiReplay');
+  var pauseBtn = document.getElementById('tuiPause');
+  if(!term) return;
+  var FRAMES = [
+    { lines:[
+      {c:'title', s:'AutoChat 引导（一站式自动配置）'},
+      {c:'dim', s:'全程在你自己电脑上，不连接外部平台，不碰他人账号。'},
+      {c:'dim', s:'模型可选手本地（零出网）或云端（只发到你指定的地址）。'},
+      {c:'dim', s:'用小号隔离主号，随时可 autochat pause 暂停 / uninstall 卸载。'}
+    ]},
+    { lines:[
+      {c:'title', s:'环境体检结果'},
+      {c:'ok', s:'✓ Node.js  v24.0.0'},
+      {c:'ok', s:'✓ 微信客户端  4.1.10.27（已安装）'},
+      {c:'ok', s:'✓ hook DLL  内置 version-aixed.dll'},
+      {c:'dim', s:'按任意键继续…'}
+    ]},
+    { lines:[
+      {c:'title', s:'锁定微信版本以阻断自动更新？（推荐）'},
+      {c:'dim', s:'DLL 与版本强绑定，版本一变就失效'},
+      {menu:[{s:'Y（默认）',hl:true},{s:'n'}]}
+    ]},
+    { lines:[
+      {c:'ok', s:'✓ 锁住微信版本'},
+      {c:'dim', s:'已把 update 目录替换为只读文件，微信无法自动下载更新'}
+    ]},
+    { lines:[
+      {c:'title', s:'检测到微信 4.1.10.27，使用内置 DLL？'},
+      {c:'dim', s:'tools/wxhook/WeChat-Hook-main/version-aixed.dll（版本精确匹配）'},
+      {menu:[{s:'Y（默认）',hl:true},{s:'n'}]}
+    ]},
+    { lines:[
+      {c:'ok', s:'✓ 自动选 DLL'},
+      {c:'dim', s:'WX_DLL_PATH 已设为内置 version-aixed.dll'}
+    ]},
+    { lines:[
+      {c:'title', s:'选择模型来源'},
+      {menu:[
+        {s:'本机 Ollama（已启动）',hl:true},
+        {s:'本机 LM Studio（已启动）'},
+        {s:'OpenAI 兼容云端'},
+        {s:'DeepSeek / 腾讯 Maas / 硅基流动…'}
+      ]}
+    ]},
+    { lines:[
+      {c:'title', s:'选择模型'},
+      {menu:[
+        {s:'qwen2.5:7b',hl:true},
+        {s:'llama3.1:8b'},
+        {s:'qwen2.5:14b'}
+      ]}
+    ]},
+    { lines:[
+      {c:'title', s:'模型测试成功'},
+      {c:'dim', s:'qwen2.5:7b @ http://127.0.0.1:11434/v1'},
+      {c:'ok', s:'✓ 测试模型连通性'},
+      {c:'dim', s:'模型回答：你好！我是你的本地助手，有什么可以帮你？'}
+    ]},
+    { lines:[
+      {c:'title', s:'电脑微信登录的是？'},
+      {menu:[
+        {s:'小号（推荐：手机主号 + 电脑小号）',hl:true},
+        {s:'同号（电脑微信就是你手机号同号）'}
+      ]}
+    ]},
+    { lines:[
+      {c:'title', s:'保存模型配置？'},
+      {menu:[{s:'Y（默认）',hl:true},{s:'n'}]}
+    ]},
+    { lines:[
+      {c:'title', s:'准备启动'},
+      {c:'dim', s:'请确认微信已登录（建议小号）。接下来会启动服务并注入微信。'},
+      {c:'dim', s:'启动后，用主号给小号发“你好”验证是否自动回复。'},
+      {c:'ok', s:'✓ 配置完成，启动 autochat start …'}
+    ]}
+  ];
+  var idx = 0, paused = false, frameTimer = null, lineTimers = [];
+  function clearTimers(){ clearTimeout(frameTimer); lineTimers.forEach(clearTimeout); lineTimers = []; }
+  function appendLine(ln){
+    var div = document.createElement('div');
+    div.className = 'term-line ' + (ln.c || '');
+    if(ln.menu){
+      var m = document.createElement('div');
+      m.className = 'term-menu';
+      ln.menu.forEach(function(it){
+        var row = document.createElement('div');
+        if(it.hl){ row.className = 'hl'; row.textContent = '▶ ' + it.s; }
+        else { row.textContent = '  ' + it.s; }
+        m.appendChild(row);
+      });
+      div.appendChild(m);
+    } else {
+      div.textContent = ln.s;
+    }
+    term.appendChild(div);
+    term.scrollTop = term.scrollHeight;
+  }
+  function renderFrame(f){
+    term.innerHTML = '';
+    f.lines.forEach(function(ln, i){ lineTimers.push(setTimeout(function(){ appendLine(ln); }, i * 400)); });
+  }
+  function play(){
+    clearTimers();
+    renderFrame(FRAMES[idx]);
+    var lastDelay = FRAMES[idx].lines.length * 400 + 1300;
+    frameTimer = setTimeout(function(){
+      if(paused) return;
+      if(idx < FRAMES.length - 1){ idx++; play(); }
+    }, lastDelay);
+  }
+  function replay(){ idx = 0; paused = false; pauseBtn.textContent = '⏸ 暂停'; clearTimers(); play(); }
+  replayBtn.addEventListener('click', replay);
+  pauseBtn.addEventListener('click', function(){ paused = !paused; pauseBtn.textContent = paused ? '▶ 继续' : '⏸ 暂停'; });
+  play();
+})();
+</script>
 </body>
 </html>
