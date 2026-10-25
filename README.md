@@ -98,15 +98,17 @@ npm run demo
 
 ### 10 步走到「小号自动回消息」
 
+> 三种入口都能完成下面这些事：**TUI 引导**（`autochat tui`，终端交互，新手最省事）、**CLI 命令**（脚本化，留给有实力的）、**GUI 窗口**（`autochat gui`，改配置最方便）。锁版本、自动选 DLL、小号模式、配模型在三者里都能做，挑顺手的即可。
+
 | # | 做什么 | 命令 / 文件 | 注意（隐私·易错） |
 |---|---|---|---|
 | 0 | 用另一台手机准备一个微信**小号** | — | 主号继续日常用；小号只在这台电脑登录 |
 | 1 | 装 **Node.js ≥ 22**（[官网下载 LTS](https://nodejs.org/zh-cn/download/)） | 安装后 `node -v` 验证 | 项目**零运行时依赖**，不用 `npm install`（直接 `node` 跑脚本即可） |
 | 2 | 拉项目（自制 DLL 已自带） | `git clone https://github.com/yushichadao/AutoChat.git` | 或去 Releases 下 DLL 附件；勿改 `tools/` 外其他 |
-| 3 | **锁微信版本 4.1.10.27** + 阻断自动更新 | 见[锁住微信版本](#2-锁住微信版本这一步不能省) 的 PowerShell | DLL 跟版本强绑定，版本一变就失效；官方不供旧版，用[历史版本汇总](https://rodert.github.io/wechat-win-versions/) |
+| 3 | 锁微信版本 4.1.10.27（阻断自动更新） | `autochat install --lock`（或 `autochat tui` 一键锁、GUI「锁定版本」按钮） | DLL 跟版本强绑定，版本一变就失效；官方不供旧版，用[历史版本汇总](https://rodert.github.io/wechat-win-versions/) |
 | 4 | 配置模型（向导，测通才保存） | `npm run setup` 或 `npm run gui` | 选**本地模型**最省心且零出网；云端填你自己的 Key |
 | 5 | 设小号模式 + 开自动回复 + 写人设 | `.env`：`WX_SELF_MODE=sender`、`AI_ENABLED=1`、`PERSONA_FILE` | 小号用 `sender`；同号必须 `id`（见[小号方案](#准备小号方案重要)） |
-| 6 | 指 DLL 路径 | `.env`：`WX_DLL_PATH=…/version-aixed.dll` | 4.1.10.27 用 `tools/wxhook/WeChat-Hook-main/version-aixed.dll` |
+| 6 | 指定 hook DLL | `autochat install` 会按检测到的微信版本自动选内置 DLL；或 `autochat tui` 自动选、GUI「自动检测」按钮 | 4.1.10.27 对应 `tools/wxhook/WeChat-Hook-main/version-aixed.dll`，其余版本见[版本档案](#版本档案) |
 | 7 | 启动并注入微信 | `npm start` → 选 `inject`(管理员) 或 `proxy` | 注入只在本机微信进程内；`autochat doctor` 自检 |
 | 8 | **验证**：主号给小号发"你好" → 小号自动回 | 看终端日志 / `npm run check` | 收到回覆即成功；没回看 doctor 的「小号检查」 |
 | 9 | 确保**接收**稳 | 见[收消息的两条腿](#收消息的两条腿) | 4.1.10.27 接收靠 DB 轮询（`/QueryDB/execute`），需 `getdbkey.dll` 取密钥 |
@@ -550,7 +552,7 @@ autochat stop           # 整个服务停掉
 | `autochat chats list\|add\|rm\|enable\|disable <会话id>` | 按会话差异化配置 |
 | `autochat context [会话id] [--clear]` | 查看 / 清空上下文 |
 | `autochat config get\|set` | 读 / 写 `.env`（`set` 保留注释与顺序，只动你指定的行） |
-| `autochat install [--autostart] [--shortcut] [--deploy-dll]` | 一键安装 |
+| `autochat install [--autostart] [--shortcut] [--deploy-dll] [--lock]` | 一键安装（--lock 锁版本） |
 | `autochat uninstall [--purge]` | 一键卸载 |
 | `autochat gui [--no-window] [--port 8788]` | 图形化配置器（默认自动打开单例浏览器窗口；端口被自己占用则复用旧实例，不重复起服务） |
 
@@ -599,6 +601,7 @@ autochat gui --window   # 用 Edge 的 --app 模式开独立桌面窗口
 ```bash
 autochat install --autostart --shortcut        # 装 + 开机自启 + 桌面快捷方式
 autochat install --autostart --shortcut --deploy-dll   # 额外把 DLL 部署成 version.dll（proxy 模式）
+autochat install --lock                        # 仅锁版本（阻断微信自动更新，无需管理员）
 autochat install AI_BASE_URL=http://127.0.0.1:11434/v1 AI_MODEL=qwen2.5:7b   # 顺手写 .env
 autochat uninstall                              # 卸
 autochat uninstall --purge                      # 连配置与数据一起清
