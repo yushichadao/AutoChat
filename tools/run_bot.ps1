@@ -5,7 +5,7 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
-$root = 'c:\Users\yushi\CodeBuddy\SnowLuma-wx'
+$root = 'c:\Users\yushi\CodeBuddy\AutoChat'
 Set-Location $root
 $env:PYTHONIOENCODING = 'utf-8'
 

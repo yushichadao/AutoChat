@@ -159,6 +159,8 @@ npm start           # 启动
 
 > 图形界面版：`npm run gui` → 打开「AI 助手」卡片，同样是选来源 → 填信息 → 点「测试一下」。
 
+> 终端引导版（新手最省事）：`npm run tui` → 方向键导航，一条路走完 检测→锁版本→选 DLL→配模型→小号→启动，不用开浏览器、不用读文档。
+
 手改配置文件的老路子也支持：
 
 ```bash
@@ -537,6 +539,27 @@ autochat stop           # 整个服务停掉
 
 所有事情都能命令行做完 —— 图形化配置器只是同一套逻辑的另一种皮。装成本地命令后是 `autochat`（未安装则为 `node src/cli/index.js <命令>`）。
 
+### 怎么打开（运行环境）
+
+所有命令都在**项目根目录**下运行（即含 `package.json` 的 `AutoChat/` 目录，也就是 `git clone` 下来的目录）。Windows 下 **PowerShell 或 cmd 均可**；若 PowerShell 报「禁止运行脚本」（ExecutionPolicy），最简单是用 **cmd** 跑，或临时 `powershell -ExecutionPolicy Bypass -Command "npm run xxx"`，两者都**不改系统设置、零副作用、无需恢复**。
+
+**进入目录并打开 PowerShell（新手）：**
+1. 文件资源管理器打开 `AutoChat` 目录；
+2. 点击顶部地址栏，清空后输入 `powershell` 回车 —— 弹出的窗口路径已在此目录；
+3. 验证：`node -v` 应显示 ≥ 22（装 Node 见[快速开始](#快速开始)）。
+
+> 也可以 `Win` 键搜 `powershell` 打开后 `cd <你 clone 下来的 AutoChat 目录>`（路径含空格加引号）。
+
+**三种入口（任选其一，能力完全等价）：**
+
+| 入口 | 命令 | 适合谁 |
+|---|---|---|
+| CLI 命令 | `node src/cli/index.js <命令>`（或全局 `npm link` 后 `autochat <命令>`） | 想脚本化、复用命令 |
+| TUI 终端引导 | `npm run tui`（`node src/cli/index.js tui`） | 新手：方向键导航，一键跑通检测→锁版本→配模型→启动 |
+| GUI 配置器 | `npm run gui`（`node src/cli/index.js gui`） | 想用浏览器图形界面改配置 |
+
+`npm run` 快捷方式见 `package.json` 的 `scripts`：`tui` / `gui` / `start` / `status` / `doctor` / `setup` / `pause` / `resume` / `stop` / `check` / `uninstall`。没有 npm 别名的子命令（如 `models` / `config` / `chats`）用 `node src/cli/index.js <命令>` 或全局 `autochat <命令>`。
+
 | 命令 | 作用 |
 |---|---|
 | `autochat setup` | **初始化向导**：一步步照着答就能用（第一次用先跑这个） |
@@ -569,7 +592,8 @@ autochat stop           # 整个服务停掉
 零依赖（不用 Electron），本地 HTTP + 单页，浏览器打开就能用。
 
 ```bash
-autochat gui            # 浏览器打开
+npm run gui             # 等价于 node src/cli/index.js gui，浏览器打开（npm 别名）
+autochat gui            # 已全局安装时同上
 autochat gui --window   # 用 Edge 的 --app 模式开独立桌面窗口
 ```
 
@@ -692,7 +716,7 @@ npm start
 ```bash
 # 注入（aixed 是注入型 DLL，用 inject 模式）
 WX_INJECT_MODE=inject
-WX_DLL_PATH=C:/你的路径/SnowLuma-wx/tools/wxhook/WeChat-Hook-main/version-aixed.dll
+WX_DLL_PATH=C:/你的路径/AutoChat/tools/wxhook/WeChat-Hook-main/version-aixed.dll
 WX_HOOK_PORT=30001
 
 # 接收：4.1.10.27 的 hook 无接收能力，必须 DB 轮询
