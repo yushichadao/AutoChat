@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import https from 'node:https';
 import os from 'node:os';
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { killProcess, isRunning } from '../core/win.js';
 import { modelServicePidFile, ROOT } from '../core/paths.js';
 import { listModels } from './model.js';
@@ -51,14 +51,14 @@ export function findExe(name, extra = []) {
     }
   }
   if (!name) return '';
-  try {
-    const out = execFileSync('where', [name], { windowsHide: true });
-    const first = String(out || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean)[0];
-    if (first) return first;
-  } catch {
-    /* 没找到 */
-  }
-  return '';
+  // 用 spawnSync 而非 execFileSync：实测 execFileSync 调 where.exe 时，
+  // 找不到文件的中文提示会泄漏到控制台刷屏；spawnSync 不会。
+  const r = spawnSync('where', [name], { windowsHide: true, stdio: 'pipe' });
+  const first = String(r.stdout || '')
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean)[0];
+  return first || '';
 }
 
 /** 探测本机装了哪些本地模型服务。 */

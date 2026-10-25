@@ -79,7 +79,15 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 if not exist node.exe (
-  echo 找不到 node.exe，请重新解压安装包或运行 tools\build-portable.ps1
+  echo [错误] 当前文件夹里找不到 node.exe。
+  echo 这个 AutoChat.bat 必须和整个 AutoChat 文件夹放在一起使用，
+  echo 不要把 AutoChat.bat 单独复制出来。请把整个 AutoChat 文件夹一起解压/移动。
+  pause
+  exit /b 1
+)
+if not exist src\cli\index.js (
+  echo [错误] 当前文件夹里找不到 src 目录（应用本体缺失）。
+  echo 请使用完整的 AutoChat 文件夹，不要只保留 AutoChat.bat。
   pause
   exit /b 1
 )
