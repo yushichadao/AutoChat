@@ -372,6 +372,14 @@ export function loadConfig({ env = process.env, rootDir = ROOT } = {}) {
       docAnalysis: bool(v.AI_DOC_ANALYSIS, false),
       /** 单份文档抽取的字符上限（防长文档撑爆上下文，0＝不限） */
       docMaxChars: int(v.AI_DOC_MAX_CHARS, 12000),
+      /**
+       * 长消息等待占位（§16.5 补）：模型在「阈值毫秒」内没回完，先发一条「等待回复中…」占位，
+       * 正式回复随后另起一条。默认 3000（3 秒）；≤0 表示关闭该功能。
+       * 占位只在阈值点由定时器单独发出，从不在正式回复里夹带/同发。
+       */
+      waitingReplyMs: int(v.AI_WAITING_REPLY_MS, 3000),
+      /** 等待占位的文案；留空用默认「等待回复中…」 */
+      waitingReplyText: str(v.AI_WAITING_REPLY_TEXT) || '等待回复中…',
       /** 生成文档的输出目录（沙箱，write_doc 只能写这里）；留空＝ dataDir/outbox */
       docOutDir: str(v.AI_DOC_OUT_DIR) || path.join(dataDir, 'outbox'),
     },

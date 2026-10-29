@@ -510,21 +510,26 @@ export class AIReply {
       const docCtx = await this.buildDocContext(msg, overrides);
       if (docCtx) messages.splice(1, 0, { role: 'system', content: docCtx });
 
-      // ── 长消息（耗时 > 阈值，默认 2000ms）占位 ──
+      // ── 长消息（耗时超过阈值才发占位，默认 3000ms）──
       // 微信无法原地替换已发消息，所以先发一条独立的「等待回复中…」，正式回复随后另起一条；
       // 短消息（在阈值内生成完）不发任何中间消息。与上方长任务提示互斥，避免连发两条占位。
+      // 占位只在「阈值点」由定时器单独发出，绝不与正式回复同一时刻夹带发送。
+      const waitingMs = Number(this.cfg.waitingReplyMs) || 0;
       let waitingSent = false;
-      const waitingTimer = setTimeout(async () => {
-        if (waitingSent || sentLongNotice) return;
-        waitingSent = true;
-        const tip = this.cfg.waitingReplyText || '等待回复中…';
-        try {
-          await this.responder.sendNotice(msg.chatId, tip);
-        } catch (e) {
-          this.log.warn?.(`等待提示发送失败（不影响回复）: ${e.message}`);
-        }
-      }, Number(this.cfg.waitingReplyMs) > 0 ? Number(this.cfg.waitingReplyMs) : 2000);
-      waitingTimer.unref?.();
+      let waitingTimer = null;
+      if (waitingMs > 0) {
+        waitingTimer = setTimeout(async () => {
+          if (waitingSent || sentLongNotice) return;
+          waitingSent = true;
+          const tip = this.cfg.waitingReplyText || '等待回复中…';
+          try {
+            await this.responder.sendNotice(msg.chatId, tip);
+          } catch (e) {
+            this.log.warn?.(`等待提示发送失败（不影响回复）: ${e.message}`);
+          }
+        }, waitingMs);
+        waitingTimer.unref?.();
+      }
 
       const raw = await this.runReply(messages, aiForThis, overrides);
       if (waitingTimer) clearTimeout(waitingTimer);
