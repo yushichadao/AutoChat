@@ -119,7 +119,13 @@ export class AIClient {
 export function normalizeBase(baseUrl) {
   let b = String(baseUrl || '').trim().replace(/\/+$/, '');
   if (!b) throw new Error('AI_BASE_URL 未配置');
-  if (!/^https?:\/\//i.test(b)) b = `https://${b}`;
+  if (!/^https?:\/\//i.test(b)) {
+    // 缺协议时：本地主机默认 http（Ollama / LM Studio 等只听 http），
+    // 远程域名才默认 https —— 否则把 127.0.0.1/localhost 误补成 https 会连不上。
+    const host = b.split('/')[0].split(':')[0];
+    const isLocal = /^(127\.0\.0\.1|localhost|0\.0\.0\.0|::1)$/i.test(host);
+    b = `${isLocal ? 'http' : 'https'}://${b}`;
+  }
   // 已经带版本号的（/v1、/v4、/v1beta、/v1beta/openai）就别再补 /v1 了
   if (!/\/v\d+[a-z]*(\/|$)/i.test(b)) b = `${b}/v1`;
   return b;
