@@ -77,10 +77,10 @@ export async function checkEnvironment({ rootDir = ROOT } = {}) {
   } else if (wechat?.version) {
     const builtin = resolveBuiltinDll(wechat.version, rootDir);
     dllDetail = builtin
-      ? `未配置，但已匹配到内置 DLL（微信 ${wechat.version}），可在配置器一键写入`
-      : '未配置 WX_DLL_PATH（没有匹配本机微信的内置 DLL，需要自备）';
+      ? `未配置，但发布包已自带匹配的 DLL（微信 ${wechat.version}），可在配置器一键写入`
+      : `未配置 WX_DLL_PATH（发布包里没有对应微信 ${wechat.version} 的适配 DLL，可改用受支持的版本或自备）`;
   } else {
-    dllDetail = '未配置 WX_DLL_PATH（需要自备匹配的 DLL）';
+    dllDetail = '未配置 WX_DLL_PATH（先让程序识别到微信安装目录，发布包自带适配 DLL）';
   }
   checks.push(step('hook DLL', dllOk, dllDetail));
   return checks;
@@ -115,13 +115,12 @@ export async function lockWeChatUpdate() {
   return { ok: true, detail: '已把 update 目录替换为只读文件，微信无法自动下载更新' };
 }
 
-const BUILTIN_AIXED = 'tools/wxhook/WeChat-Hook-main/version-aixed.dll';
+const BUILTIN_AC = 'tools/wxhook/version-ac-4.1.10.27.dll';
 const BUILTIN_MILOIRA = [
   'tools/wxhook/mini.dll',
   'tools/wxhook/mini2.dll',
   'tools/wxhook/mini_c.dll',
   'tools/wxhook/mini_gcc16.dll',
-  'tools/wxhook/version-gcc16.dll',
 ];
 
 /**
@@ -134,8 +133,11 @@ export function resolveBuiltinDll(version, rootDir = ROOT) {
   const d = r.profile.dll.toLowerCase();
   if (d.includes('aixed')) {
     if (r.profile.wechat === '4.1.10.27') {
-      const p = path.join(rootDir, BUILTIN_AIXED);
-      return fs.existsSync(p) ? p : null;
+      // 4.1.10.27 的自制 DLL 已统一改名为 version-ac-4.1.10.27.dll（原 483840 构建，
+      // 支持 send，接收走 DB 轮询）。旧的 aixed(main)/gcc16 构建已弃用：
+      // aixed 在 4.1.10.27 上启动即 0xc0000005 崩溃，gcc16 为冗余兜底，均不再保留。
+      const ac = path.join(rootDir, BUILTIN_AC);
+      return fs.existsSync(ac) ? ac : null;
     }
     return null;
   }
@@ -175,21 +177,27 @@ export async function install(opts = {}) {
     }
   }
 
-  // ── 自动选 DLL：未显式指定时，按检测到的微信版本匹配内置 DLL ──
+  // ── 自动选 DLL：优先沿用已配置的（用户自制）DLL；没有再按版本匹配内置 ──
   if (!opts.env?.WX_DLL_PATH && !opts.dllPath) {
-    const wechat = await detectWeChat(opts.env?.WX_INSTALL_DIR || '').catch(() => null);
-    if (wechat?.version) {
-      const builtin = resolveBuiltinDll(wechat.version, rootDir);
-      if (builtin) {
-        opts.env = { ...(opts.env || {}), WX_DLL_PATH: builtin };
-        const lv = resolveProfile(wechat.version).level;
-        steps.push(
-          step(
-            '自动选 DLL',
-            true,
-            `${path.relative(rootDir, builtin)}（微信 ${wechat.version}${lv === 'exact' ? '' : '，版本近似匹配，可能需手动换'}）`
-          )
-        );
+    const existing = fs.existsSync(envFile) ? readEnvFile(envFile) : {};
+    const configured = String(existing.WX_DLL_PATH || '').trim();
+    if (configured && fs.existsSync(configured)) {
+      steps.push(step('沿用已配置的 DLL（优先）', true, configured));
+    } else {
+      const wechat = await detectWeChat(existing.WX_INSTALL_DIR || opts.env?.WX_INSTALL_DIR || '').catch(() => null);
+      if (wechat?.version) {
+        const builtin = resolveBuiltinDll(wechat.version, rootDir);
+        if (builtin) {
+          opts.env = { ...(opts.env || {}), WX_DLL_PATH: builtin };
+          const lv = resolveProfile(wechat.version).level;
+          steps.push(
+            step(
+              '自动选 DLL',
+              true,
+              `${path.relative(rootDir, builtin)}（微信 ${wechat.version}${lv === 'exact' ? '' : '，版本近似匹配，可能需手动换'}）`
+            )
+          );
+        }
       }
     }
   }
@@ -280,6 +288,13 @@ export async function uninstall(opts = {}) {
   const jsonFile = path.join(rootDir, 'config.json');
   const dataDir = path.join(rootDir, 'data');
   const steps = [];
+  /**
+   * 演练模式（--dry-run）：只报告「会做什么」，**不真的动任何东西**。
+   * 之前这个参数只是 CLI 标题里写着「卸载（演练，不改任何文件）」，任务层根本没实现，
+   * 跑 --dry-run 照样会停掉服务、删掉快捷方式 —— 演练个锤子。
+   */
+  const dryRun = Boolean(opts.dryRun);
+  const tag = dryRun ? '（演练）' : '';
 
   const pidFile = path.join(dataDir, 'autochat.pid');
   let pid = 0;
@@ -289,22 +304,50 @@ export async function uninstall(opts = {}) {
     pid = 0;
   }
   if (pid && (await isRunning(pid))) {
-    const r = await killProcess(pid);
-    steps.push(step('停止服务', r.ok, r.ok ? `已结束进程 ${pid}` : r.message));
+    if (dryRun) {
+      steps.push(step('停止服务', true, `${tag}会结束进程 ${pid}`));
+    } else {
+      const r = await killProcess(pid);
+      steps.push(step('停止服务', r.ok, r.ok ? `已结束进程 ${pid}` : r.message));
+    }
   } else {
     steps.push(step('停止服务', true, '没有正在运行的实例'));
   }
-  try {
-    if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
-  } catch {
-    /* 忽略 */
+  if (!dryRun) {
+    try {
+      if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+    } catch {
+      /* 忽略 */
+    }
   }
 
-  const r = await clearAutoStart(AUTOSTART_NAME);
-  steps.push(step('取消开机自启', r.ok, r.ok ? '' : r.message));
+  if (dryRun) {
+    const has = await getAutoStart(AUTOSTART_NAME);
+    steps.push(
+      step(
+        '取消开机自启',
+        true,
+        has ? `${tag}会删除自启项 ${AUTOSTART_NAME}` : `${tag}没有自启项，无需处理`
+      )
+    );
+  } else {
+    const r = await clearAutoStart(AUTOSTART_NAME);
+    steps.push(step('取消开机自启', r.ok, r.ok ? '' : r.message));
+  }
 
-  const s = await removeShortcut(SHORTCUT_NAME);
-  steps.push(step('删除桌面快捷方式', s.ok, s.ok ? '' : s.message));
+  if (dryRun) {
+    const link = shortcutPath(SHORTCUT_NAME);
+    steps.push(
+      step(
+        '删除桌面快捷方式',
+        true,
+        fs.existsSync(link) ? `${tag}会删除 ${link}` : '本来就没有快捷方式'
+      )
+    );
+  } else {
+    const s = await removeShortcut(SHORTCUT_NAME);
+    steps.push(step('删除桌面快捷方式', s.ok, s.ok ? '' : s.message));
+  }
 
   try {
     const env = readEnvFile(envFile);
@@ -312,9 +355,13 @@ export async function uninstall(opts = {}) {
     const target = dir ? path.join(dir, 'version.dll') : '';
     const bak = target ? `${target}.bak` : '';
     if (target && fs.existsSync(bak)) {
-      fs.copyFileSync(bak, target);
-      fs.unlinkSync(bak);
-      steps.push(step('还原微信目录', true, `已还原 ${target}`));
+      if (dryRun) {
+        steps.push(step('还原微信目录', true, `${tag}会还原 ${target}`));
+      } else {
+        fs.copyFileSync(bak, target);
+        fs.unlinkSync(bak);
+        steps.push(step('还原微信目录', true, `已还原 ${target}`));
+      }
     } else {
       steps.push(step('还原微信目录', true, '没有需要还原的 version.dll'));
     }
@@ -323,25 +370,73 @@ export async function uninstall(opts = {}) {
   }
 
   if (opts.purge) {
-    try {
-      if (fs.existsSync(dataDir)) fs.rmSync(dataDir, { recursive: true, force: true });
-      steps.push(step('删除运行数据', true, dataDir));
-    } catch (err) {
-      steps.push(step('删除运行数据', false, err.message));
-    }
-    for (const f of [envFile, jsonFile]) {
+    if (dryRun) {
+      steps.push(step('删除运行数据', true, `${tag}会删除 ${dataDir}`));
+      for (const f of [envFile, jsonFile]) {
+        steps.push(step(`删除 ${path.basename(f)}`, true, `${tag}会删除 ${f}`));
+      }
+    } else {
       try {
-        if (fs.existsSync(f)) fs.unlinkSync(f);
-        steps.push(step(`删除 ${path.basename(f)}`, true, f));
+        if (fs.existsSync(dataDir)) fs.rmSync(dataDir, { recursive: true, force: true });
+        steps.push(step('删除运行数据', true, dataDir));
       } catch (err) {
-        steps.push(step(`删除 ${path.basename(f)}`, false, err.message));
+        steps.push(step('删除运行数据', false, err.message));
+      }
+      for (const f of [envFile, jsonFile]) {
+        try {
+          if (fs.existsSync(f)) fs.unlinkSync(f);
+          steps.push(step(`删除 ${path.basename(f)}`, true, f));
+        } catch (err) {
+          steps.push(step(`删除 ${path.basename(f)}`, false, err.message));
+        }
       }
     }
   } else {
     steps.push(step('保留配置与数据', true, '要彻底清除请加 --purge'));
   }
 
+  // ── 可选：把程序目录整个移入回收站 ──
+  // 只在这里、且只在显式勾选时做。回收站可还原，比 rm -rf 安全，
+  // 但仍然是「把程序本体从磁盘上挪走」，所以必须作为独立一步报出来。
+  if (opts.recycle) {
+    if (dryRun) {
+      steps.push(step('移入回收站', true, `${tag}会把程序目录 ${rootDir} 移入回收站`));
+    } else {
+      const r = await sendToRecycleBin(rootDir);
+      steps.push(
+        step('移入回收站', r.ok, r.ok ? `已移入回收站：${rootDir}` : (r.message || '失败'))
+      );
+    }
+  }
+
   return { ok: steps.every((x) => x.ok), steps };
+}
+
+/**
+ * 把目录移入回收站（可还原，不是直接删除）。
+ *
+ * 用 Windows 自带的 Microsoft.VisualBasic.FileIO.FileSystem —— 不引入任何依赖。
+ * 注意：如果目录正被占用（比如配置器自己就在这个目录里跑），Windows 会拒绝，
+ * 这时如实报错，绝不静默跳过。
+ *
+ * @param {string} dir 绝对路径
+ * @returns {Promise<{ok:boolean, message?:string}>}
+ */
+export async function sendToRecycleBin(dir) {
+  const target = String(dir || '').trim();
+  if (!target) return { ok: false, message: '没有指定目录' };
+  if (!fs.existsSync(target)) return { ok: false, message: '目录不存在：' + target };
+  // PowerShell 单引号拼接路径（双引号会把路径里的 \n / \t 当转义字符）—— 路径里的单引号写成 ''
+  const safe = target.replace(/'/g, "''");
+  const ps =
+    "Add-Type -AssemblyName Microsoft.VisualBasic; " +
+    "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory('" + safe + "','OnlyErrorDialogs','SendToRecycleBin')";
+  const r = await runPs(ps);
+  if (!r.ok) {
+    const msg = String(r.err || r.out || '').trim();
+    return { ok: false, message: msg ? /被占用|正在使用|used by another/i.test(msg) ? '目录正被占用（请先关掉配置器窗口再试）：' + msg : msg : '移入回收站失败' };
+  }
+  return { ok: true };
 }
 
 /** 安装状态（给 GUI 展示）。 */

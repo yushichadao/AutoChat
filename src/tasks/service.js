@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { ps, wmiCreate, killProcess, isRunning } from '../core/win.js';
+import { ps, wmiCreate, killProcess, isRunning, isOurServicePid } from '../core/win.js';
 import { PidFile } from '../core/pause.js';
 import { dataDir, logFiles, pidFile, ROOT } from '../core/paths.js';
 
@@ -17,18 +17,24 @@ export function serviceLogPaths(rootDir = ROOT) {
   return logFiles(rootDir);
 }
 
-/** 日志太大就滚一代，避免 data 目录越滚越大。 */
-export function rotateLog(file, maxBytes = 2 * 1024 * 1024) {
+/** 日志太大就轮转，保留 generations 代（默认 3），避免 data 目录越滚越大（L7）。 */
+export function rotateLog(file, { maxBytes = 2 * 1024 * 1024, generations = 3 } = {}) {
   try {
     if (!fs.existsSync(file)) return;
     if (fs.statSync(file).size <= maxBytes) return;
-    const old = file + '.1';
-    try {
-      fs.unlinkSync(old);
-    } catch {
-      /* 没有旧的就忽略 */
+    // 先把旧的 .1/.2 依次后移一代，腾出 .1 给当前文件
+    for (let i = generations; i >= 1; i--) {
+      const src = i === 1 ? file : `${file}.${i - 1}`;
+      const dst = `${file}.${i}`;
+      try {
+        if (fs.existsSync(src)) {
+          if (i === generations && fs.existsSync(dst)) fs.unlinkSync(dst);
+          fs.renameSync(src, dst);
+        }
+      } catch {
+        /* 某代移不动就跳过 */
+      }
     }
-    fs.renameSync(file, old);
   } catch {
     /* 滚不动就算了 */
   }
@@ -82,6 +88,11 @@ export async function stopService(rootDir = ROOT) {
     file.clear();
     return { ok: true, message: '没有正在运行的助手服务' };
   }
+  // GAP6 陈旧 pid：若 pid 指向非本服务进程（被 Windows 复用），不误杀他人，只清掉陈旧文件
+  if (!(await isOurServicePid(pid))) {
+    file.clear();
+    return { ok: true, message: 'pid 指向非本服务进程，已清理陈旧的 pid 文件' };
+  }
   const r = await killProcess(pid);
   if (r.ok) file.clear();
   return { ok: r.ok, message: r.message || ('已停止服务（pid ' + pid + '）') };
@@ -89,8 +100,14 @@ export async function stopService(rootDir = ROOT) {
 
 /** 服务当前状态。 */
 export async function serviceStatus(rootDir = ROOT) {
-  const pid = new PidFile({ file: pidFile(rootDir) }).read();
-  const running = pid ? await isRunning(pid) : false;
+  const file = new PidFile({ file: pidFile(rootDir) });
+  const pid = file.read();
+  let running = false;
+  if (pid && (await isRunning(pid))) {
+    // GAP6 陈旧 pid：活着的 pid 若不是本服务进程，视为陈旧并清理
+    running = await isOurServicePid(pid);
+    if (!running) file.clear();
+  }
   return { running, pid: running ? pid : 0 };
 }
 

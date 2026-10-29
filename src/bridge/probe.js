@@ -13,7 +13,7 @@ const CANDIDATES = [
   // 发送类默认不探：这类接口是写操作，某些实现不校验字段就会真的发出去
   { key: 'sendText', method: 'POST', path: '/SendTextMsg', body: {}, readonly: false, expect: null },
   { key: 'sendImage', method: 'POST', path: '/SendImgMsg', body: {}, readonly: false, expect: null },
-  { key: 'sendFile', method: 'POST', path: '/SendFileMsg', body: {}, readonly: false, expect: null },
+
   { key: 'sendXml', method: 'POST', path: '/ForwardXMLMsg', body: {}, readonly: false, expect: null },
 ];
 

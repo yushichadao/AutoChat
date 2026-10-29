@@ -12,7 +12,7 @@
 | `check-env.js` | 环境体检：微信版本、DLL、权限、hook 能力、自身 wxid、webhook 暴露面、按会话配置、AI 联通性（薄封装，真正逻辑在 `src/tasks/doctor.js`） |
 | `uninstall.js` | 卸载/还原：还原 `version.dll`、解除微信更新通道阻断、可选清理 `data/` |
 
-入口在 `package.json` 的 scripts 里：`npm run demo` / `npm run doctor` / `npm run uninstall`。
+入口在 `package.json` 的 scripts 里：`npm run demo` / `npm run doctor` / `npm run uninstall-service`。
 
 ## 二、上一代 Python 实现遗留 —— 保留在本地，**不进版本库**
 
@@ -48,4 +48,4 @@ pwsh -File tools/get-mingw.ps1
 ```
 
 `build-aixed.ps1` 是编译 hook DLL 的脚本，产物属于第三方项目。
-npm 包不附带任何二进制；仓库随附的部分 hook DLL 见 [docs/DLL-SOURCES.md](../docs/DLL-SOURCES.md)（含许可与来源），其余第三方源码不进版本库。
+npm 包不附带任何二进制；仓库随附的部分 hook DLL 见 [docs/dll-sources.md](../docs/dll-sources.md)（含许可与来源），其余第三方源码不进版本库。

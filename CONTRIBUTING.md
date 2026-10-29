@@ -8,7 +8,7 @@
 git clone https://github.com/yushichadao/AutoChat.git
 cd AutoChat
 npm install        # 零运行时依赖，基本是空操作
-npm test           # 123 项，应全绿
+npm test           # 231 项，应全绿
 npm run demo       # 不需要 DLL 与 API Key 跑通全链路
 npm run doctor     # 在你自己的机器上体检
 ```
@@ -55,7 +55,7 @@ src/
 
 > **逻辑写在 `src/tasks/`，渲染写在各自入口（`src/cli/`、`src/gui/`）。**
 
-- 命令行与图形化配置器是**两个平级入口**，能力必须一一对应（对照表见 [docs/EXPERIENCE-AUDIT.md](docs/EXPERIENCE-AUDIT.md)）。
+- 命令行与图形化配置器是**两个平级入口**，能力必须一一对应（对照表见 [docs/experience-audit.md](docs/experience-audit.md)）。
 - 不要在 CLI 命令文件或前端里写业务判断；也不要把同一份逻辑复制两份。
 - npm script 只是命令行的薄别名；`tools/*.js` 只做薄封装。
 ## 命令
@@ -68,7 +68,7 @@ src/
 | 模型 | `model test` / `model list` / `model service start\|stop\|status` |
 | 管理 | `chats`、`context`、`config`、`lock`、`autodll`、`install`、`uninstall`、`version` |
 
-完整说明见 [docs/COMMANDS.md](docs/COMMANDS.md)。
+完整说明见 [docs/commands.md](docs/commands.md)。
 
 ## 测试
 
@@ -86,7 +86,7 @@ node --test test/cli.test.js  # 单个文件
 
 ## 文案与命名规范
 
-- 术语一律按 [docs/GLOSSARY.md](docs/GLOSSARY.md)：例如「自动回复开关」（配置层）与「暂停状态」（运行层）不要再叫「总闸」。
+- 术语一律按 [docs/glossary.md](docs/glossary.md)：例如「自动回复开关」（配置层）与「暂停状态」（运行层）不要再叫「总闸」。
 - 终端输出：一行一件事，结论不加句号，需要动作时写 `→ 下一步：…`。
 - 界面：卡片标题用名词短语，按钮用动词短语，说明写「关掉会怎样」。
 - 代码：文件名小写短横线，导出符号 camelCase，常量全大写；函数名用动词短语带层次（`doctorReport()`、`startBackground()`）。

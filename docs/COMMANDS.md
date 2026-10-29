@@ -51,6 +51,24 @@
 | `autochat model service status` | 本地模型服务状态 |
 | `autochat model service start` | 启动本地模型服务（Ollama 等）并等就绪 |
 | `autochat model service stop` | 停止**由 AutoChat 启动的**模型服务 |
+| `autochat effort` | 看当前思考强度（并显示这次到底会发什么字段） |
+| `autochat effort [off\|low\|medium\|high]` | 设置思考强度（不带参数＝只看状态） |
+| `autochat effort high --format qwen` | 手动指定该服务商的思考字段写法（见下表） |
+| `autochat effort --format auto` | 按模型名自动判断（默认就是 auto） |
+| `autochat effort --budget 4096` | 设置思考预算 token（按 token 表达强弱的格式生效，0＝按档位自动） |
+
+思考参数格式（`--format`）与各家模型对应关系：
+
+| 格式 | 发出去的字段 | 适用 |
+| --- | --- | --- |
+| `auto` | 按接口地址 / 模型名自动判断 | 默认，认不出来就按标准那套发 |
+| `standard` | `reasoning_effort` | OpenAI o 系列 / gpt-5、xAI Grok、多数聚合网关 |
+| `openrouter` | `reasoning.effort` / `reasoning.max_tokens` | OpenRouter |
+| `qwen` | `enable_thinking` + `thinking_budget` | 通义 Qwen3 / QwQ、百度 ERNIE |
+| `anthropic` | `thinking.type` + `thinking.budget_tokens` | Claude 系 |
+| `gemini` | `extra_body.google.thinking_config.thinking_budget` | Gemini 2.5 / 3 |
+| `thinking` | `thinking.type`（只有开/关） | DeepSeek、智谱 GLM、Kimi、混元 |
+| `ollama` | `think` | 本地 gpt-oss、llama3.x |
 
 ### 管理
 
@@ -87,6 +105,8 @@ model  model-service  install  uninstall  pause  resume  stop
 | `AI_ENABLED` | **自动回复开关**（0 = 只收消息不回复） |
 | `AI_BASE_URL` / `AI_MODEL` / `AI_API_KEY` | 模型地址 / 模型名 / 密钥 |
 | `AI_GROUP_REPLY` | 群聊什么时候回：`never` / `mention` / `always` |
+| `AI_REASONING_EFFORT` | 思考强度：`off` / `low` / `medium` / `high`（`autochat effort`） |
+| `AI_REASONING_FORMAT` / `AI_REASONING_BUDGET` | 思考参数格式（`auto`/`standard`/`openrouter`/`qwen`/`anthropic`/`gemini`/`thinking`/`ollama`）/ 思考预算 token |
 | `AI_GROUP_AT_NAMES` | 群里被 @ 时认可的称呼（强烈建议填） |
 | `WX_SELF_ID` / `WX_SELF_MODE` | 本机 wxid / 判定方式（`sender` 或 `id`） |
 | `WX_DLL_PATH` | hook DLL 绝对路径 |
@@ -96,4 +116,4 @@ model  model-service  install  uninstall  pause  resume  stop
 
 完整列表见 `.env.example`。
 
-> 相关：[十分钟上手](GETTING-STARTED.md) · [术语表](GLOSSARY.md) · [故障模式](FAILURE-MODES.md)
+> 相关：[十分钟上手](getting-started.md) · [术语表](glossary.md) · [故障模式](failure-modes.md)

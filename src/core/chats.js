@@ -8,6 +8,20 @@ import { ROOT, jsonFile } from './paths.js';
  */
 export const CHAT_FIELDS = new Set([
   'enabled', 'groupReply', 'personaFile', 'model', 'baseUrl', 'systemPrompt', 'triggerPrefix',
+  'reasoningEffort', 'reasoningFormat',
+  // 归属账号（当前登录微信号 wxid）。带 account 的会话仅当与当前登录账号一致时才监听/回复，
+  // 用于同一台电脑先后登录多号时的隔离，防旧号专属群误用于新号。
+  'account',
+  // 回复模式覆盖：single=逐条（默认）/ batch=多消息合批（见 G33/R28）
+  'replyMode',
+  // 灰度开关覆盖：按会话单独开 / 关联网搜索与 AI 工具调用（默认跟随全局总开关）。
+  'webSearch', 'aiTools',
+  'webSearchProvider', 'webSearchMode', 'webSearchPrefix', 'aiToolsAllow',
+  // 双模型路由覆盖（§16.5）：路由开关 + 轻量模型的地址 / 名称。
+  // 注意：与 apiKey 同理，lightApiKey 属敏感键，不进写入白名单（仅允许手动写 config.json）。
+  'modelRouting', 'longTaskNotice', 'lightModel', 'lightBaseUrl',
+  // 文档解读覆盖（§16.6）
+  'docAnalysis',
 ]);
 
 /**
@@ -25,8 +39,21 @@ export const CHAT_FIELDS = new Set([
  * }
  *
  * 这样同一个号在 A 群是技术答疑、在 B 群是闲聊助手，可以各配各的；
- * 某个群不想让机器人说话，只要 enabled=false。
+ * 某个群不想让助手说话，只要 enabled=false。
  */
+/**
+ * 三态布尔：'' / undefined / null ＝「跟随全局」（返回 undefined）；
+ * 其余按布尔解析。
+ *
+ * 关键：界面写进来的是**字符串** '1' / '0'，直接用 Boolean('0') 会得到 true ——
+ * 「关」会变成「开」（实测踩坑），所以必须显式把 '0' / 'false' 判为关。
+ */
+function triBool(v) {
+  if (v === undefined || v === null || v === '') return undefined;
+  if (v === false || v === 'false' || v === 0 || v === '0') return false;
+  return Boolean(v);
+}
+
 export class ChatProfiles {
   constructor({ chats = {}, rootDir = '', logger } = {}) {
     this.raw = chats && typeof chats === 'object' ? chats : {};
@@ -46,10 +73,24 @@ export class ChatProfiles {
   }
 
   /**
+   * 整体替换会话配置（配置热更新用）。
+   *
+   * 常驻进程启动时读的那份是快照；用户在界面里加入新群后，不换掉就是
+   * 「消息收到了，但用的还是全局策略」—— 看起来像配置没生效。
+   * 人设缓存按文件路径保留，不跟着失效。
+   */
+  setChats(chats) {
+    this.raw = chats && typeof chats === 'object' && !Array.isArray(chats) ? chats : {};
+    return this.size;
+  }
+
+  /**
    * 该会话的覆盖项。未配置的字段返回 undefined，表示「沿用全局设置」。
    *
    * 其中 model / baseUrl / apiKey 用来给这个会话单独指定模型
-   * （例如某个群想用更便宜的模型、或者单独走一个本地推理服务）。
+   * （例如某个群想用更便宜的模型、或者单独走一个本地推理服务），
+   * reasoningEffort 用来给这个会话单独指定思考强度
+   * （例如技术群开「高」、闲聊群关掉，省 token）。
    * 只要在 config.json 里给了其中任意一项，该会话就会据此新建客户端，
    * 否则沿用全局 AI 配置。
    */
@@ -64,6 +105,27 @@ export class ChatProfiles {
       model: c.model || undefined,
       baseUrl: c.baseUrl || undefined,
       apiKey: c.apiKey || undefined,
+      /** 该会话专属的思考强度（off/low/medium/high）；没配就是沿用全局 */
+      reasoningEffort: c.reasoningEffort || undefined,
+      reasoningFormat: c.reasoningFormat || undefined,
+      /** 回复模式覆盖：'single' / 'batch'；没配就是沿用全局 */
+      replyMode: c.replyMode || undefined,
+      /** 灰度开关覆盖：按会话单独开 / 关联网搜索与 AI 工具调用；'' 或没配＝跟随全局 */
+      webSearch: triBool(c.webSearch),
+      aiTools: triBool(c.aiTools),
+      webSearchProvider: c.webSearchProvider || undefined,
+      webSearchMode: c.webSearchMode || undefined,
+      webSearchPrefix: c.webSearchPrefix === undefined || c.webSearchPrefix === '' ? undefined : String(c.webSearchPrefix),
+      aiToolsAllow: c.aiToolsAllow || undefined,
+      /** 双模型路由覆盖（§16.5）：'' / 没配＝跟随全局 */
+      modelRouting: triBool(c.modelRouting),
+      longTaskNotice: triBool(c.longTaskNotice),
+      lightModel: c.lightModel || undefined,
+      lightBaseUrl: c.lightBaseUrl || undefined,
+      /** 文档解读覆盖（§16.6）：'' / 没配＝跟随全局 */
+      docAnalysis: triBool(c.docAnalysis),
+      /** 敏感键：不进写入白名单，但手动写 config.json 仍生效（与 apiKey 同口径） */
+      lightApiKey: c.lightApiKey || undefined,
     };
   }
 

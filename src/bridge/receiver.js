@@ -6,6 +6,20 @@ import { normalizeMessage, normalizeDbRow, dedupeKey } from '../protocol/normali
 import { candidateDbs, buildPollSql, buildRowSql } from './poll-sql.js';
 
 /**
+ * 兼容旧配置：手写 WX_POLL_SQL 里若写死 `local_type = 1`（只取文本），
+ * 文件/图片/语音等消息就永远进不来。这里仅精确匹配该片段自动放宽，
+ * 不动其它 WHERE 条件，并提示用户改成 IN (1,3,34,43,47,49)。
+ */
+function broadenPollSql(sql, log) {
+  if (!sql || !/local_type\s*=\s*1\b/i.test(sql)) return sql;
+  log?.warn(
+    'WX_POLL_SQL 写死了 local_type = 1，已自动放宽到包含文件/图片/语音等类型；' +
+      '建议显式改为 local_type IN (1,3,34,43,47,49)'
+  );
+  return sql.replace(/local_type\s*=\s*1\b/gi, 'local_type IN (1,3,34,43,47,49)');
+}
+
+/**
  * 收消息的两条腿：
  *  1) webhook —— DLL 收到消息后 POST 到我们，延迟最低
  *  2) poll    —— 定时用 /QueryDB/execute 查库，覆盖不支持回调的 DLL
@@ -24,8 +38,9 @@ export class Receiver extends EventEmitter {
     /** sender | id —— 见 bridge/self-filter.js */
     this.selfMode = cfg.selfMode || 'sender';
     this.selfFilter = selfFilter;
-    /** 昵称缓存（wxid → 昵称 / 群名） */
+    /** 昵称缓存（wxid → 昵称 / 群名），按账号隔离 */
     this.contacts = contacts;
+    this.contacts?.setCurrentAccount?.(this.selfId);
     this.seen = new Map();
     this.seenLimit = 2000;
     this.server = null;
@@ -37,11 +52,15 @@ export class Receiver extends EventEmitter {
     this.stats = { webhook: 0, poll: 0, dropped: 0, rejected: 0, selfDropped: 0 };
     /** 按会话生成的轮询计划（每个会话一条 SQL） */
     this.pollPlan = pollPlan;
+    /** 把已知会话告诉 hook，使其能快速精准反推本机 wxid（换号也自动生效） */
+    this.hook.chatIds = (pollPlan || []).map((p) => p.chatId).filter(Boolean);
     /** 会话 → 已处理到的最大消息 id（增量水位），重启后要记住，否则会重复回旧消息 */
     this.watermark = new Map();
     this.wmFile = cfg.watermarkFile || '';
     this.wmDirty = false;
     this.loadWatermark();
+    /** 复检补答去重：本次会话内已派发过补答的 (chatId:local_id)，避免重复派发 */
+    this.reconcileSeen = new Set();
   }
 
   /** 读回上次的水位（data/poll-state.json）。 */
@@ -72,6 +91,36 @@ export class Receiver extends EventEmitter {
     } catch (err) {
       this.log?.debug?.(`水位写入失败: ${err.message}`);
     }
+  }
+
+  /**
+   * 运行时替换轮询计划 —— 「加入新群不用重启」的关键。
+   *
+   * 服务是常驻进程，启动时生成的 pollPlan 只是一份快照。用户后来在界面里
+   * 加入新群（config.json / WX_POLL_CHATS 变了），不重启就永远不会去查那个群的表，
+   * 表现就是「群里怎么 @ 都不回，日志还干干净净」。
+   *
+   * 新增的会话会先做水位对齐（initWatermark），这样接管瞬间群里的历史消息
+   * 不会被当成新消息一口气回一遍。
+   *
+   * @param {{chatId:string,db:string,table:string,limit?:number,sql:string}[]} plan
+   * @returns {Promise<{added:string[], removed:string[]}>}
+   */
+  async setPlan(plan) {
+    const next = Array.isArray(plan) ? plan.filter((p) => p && p.chatId) : [];
+    const before = new Set(this.pollPlan.map((p) => p.chatId));
+    const after = new Set(next.map((p) => p.chatId));
+    const added = next.filter((p) => !before.has(p.chatId));
+    const removed = [...before].filter((id) => !after.has(id));
+
+    this.pollPlan = next;
+    if (removed.length) {
+      for (const id of removed) this.watermark.delete(id);
+      this.wmDirty = true;
+    }
+    if (added.length) await this.initWatermark(added);
+    if (added.length || removed.length) this.saveWatermark();
+    return { added: added.map((p) => p.chatId), removed };
   }
 
   remember(key) {
@@ -171,14 +220,14 @@ export class Receiver extends EventEmitter {
             const cid = item?.chatId || item?.roomId || item?.fromChatroom;
             if (cid) ids.add(String(cid));
           }
-          if (ids.size) this.contacts.lookup([...ids]).catch(() => {});
+          if (ids.size) this.contacts.lookup([...ids], this.selfId).catch(() => {});
         }
         for (const item of list) {
-          const msg = normalizeMessage(item, { selfId, selfMode: this.selfMode });
+          const msg = normalizeMessage(item, { selfId, selfMode: this.selfMode, fileStorageBase: this.cfg.wechat?.fileStorageBase || '' });
           if (!msg) continue;
-          const senderName = this.contacts?.nameOf(msg.senderId);
+          const senderName = this.contacts?.nameOf(msg.senderId, this.selfId);
           if (senderName) msg.senderName = senderName;
-          const chatName = this.contacts?.nameOf(msg.chatId);
+          const chatName = this.contacts?.nameOf(msg.chatId, this.selfId);
           if (chatName) msg.chatName = chatName;
           this.lastWebhookAt = Date.now();
           this.emitMessage(msg, 'webhook');
@@ -202,7 +251,7 @@ export class Receiver extends EventEmitter {
     const plan = this.pollPlan.length
       ? this.pollPlan
       : this.cfg.pollSql
-        ? [{ chatId: '', db: this.cfg.pollDb || 'message_0.db', sql: this.cfg.pollSql }]
+        ? [{ chatId: '', db: this.cfg.pollDb || 'message_0.db', sql: broadenPollSql(this.cfg.pollSql, this.log) }]
         : [];
     if (!plan.length) {
       this.log.warn('未配置 WX_POLL_SQL / WX_POLL_CHATS，跳过数据库轮询（只能依赖 DLL 回调）');
@@ -216,7 +265,7 @@ export class Receiver extends EventEmitter {
       return;
     }
     // 首次接管某个会话时，先把水位定到「当前最大 id」，
-    // 否则历史消息会被当成新消息，机器人一上来就刷屏。
+    // 否则历史消息会被当成新消息，助手一上来就刷屏。
     await this.initWatermark(plan);
 
     const tick = async () => {
@@ -246,6 +295,16 @@ export class Receiver extends EventEmitter {
               .filter((id) => Number.isFinite(id) && id > mark)
               .sort((a, b) => a - b);
             if (!newIds.length) continue;
+            // 首次接管兜底：加入会话的那一刻表可能还不存在（刚被拉进群、还没说过话），
+            // initWatermark 就设不上水位。这里补一刀 —— 先把水位对齐到当前最新一条，
+            // 本批历史只记账不投递，否则一进群就会把最近 30 条旧消息全部回一遍。
+            if (!this.watermark.has(p.chatId)) {
+              const top = newIds[newIds.length - 1];
+              this.watermark.set(p.chatId, top);
+              this.wmDirty = true;
+              this.log.info(`会话 ${p.chatId} 首次接管，水位对齐到 ${top}（只处理之后的新消息）`);
+              continue;
+            }
 
             // 2) 逐条按 local_id 取完整单行（正文 / 发送者在此获取；单行查询在 hook 下稳定）
             const rids = new Set();
@@ -273,23 +332,24 @@ export class Receiver extends EventEmitter {
               if (w) ids.add(String(w));
             }
             if (p.chatId) ids.add(p.chatId);
-            await this.contacts.lookup([...ids]);
+            await this.contacts.lookup([...ids], this.selfId);
           }
           for (const r of rows) {
             r.roomid = p.roomid ?? p.chatId; // 在 JS 里补 roomid，避免 SQL 常量触发 hook 空返回
             if (!manual) r.wxid = nameMap.get(String(r.rid)) || '';
-            const msg = normalizeDbRow(r, { selfId, selfMode });
+            const msg = normalizeDbRow(r, { selfId, selfMode, fileStorageBase: this.cfg.wechat?.fileStorageBase || '' });
             if (!msg) continue;
-            const senderName = this.contacts?.nameOf(msg.senderId);
+            const senderName = this.contacts?.nameOf(msg.senderId, this.selfId);
             if (senderName) msg.senderName = senderName;
-            const chatName = this.contacts?.nameOf(msg.chatId);
+            const chatName = this.contacts?.nameOf(msg.chatId, this.selfId);
             if (chatName) msg.chatName = chatName;
             this.emitMessage(msg, 'poll');
           }
         }
         this.saveWatermark();
       } catch (err) {
-        this.log.debug('轮询失败', err.message);
+        // 轮询异常以前只记 debug，日志里根本看不到；升级为 warn 才能被察觉
+        this.log.warn('轮询失败', err.message);
       } finally {
         this.polling = false;
       }
@@ -340,16 +400,36 @@ export class Receiver extends EventEmitter {
     if (!sql) return [];
     const dbs = [baseDb, ...candidateDbs(baseDb).filter((d) => d !== baseDb)];
     let lastErr;
+    let lastDesc = '';
     for (const db of dbs) {
       try {
         const res = await this.hook.queryDb(sql, db);
         const arr = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : null;
-        if (arr && arr.length) return arr;
+        if (arr && arr.length) {
+          this.qFailStreak = 0;
+          return arr;
+        }
+        // hook 常以 {status:-1, desc:'…'} 报失败（如「消息库打不开」）——它**不是异常**，
+        // 以前完全不落日志，表现为「助手静默不回话、日志干干净净」，极难排查。这里必须留痕。
+        const d = res && !Array.isArray(res) ? String(res.desc || res.message || '') : '';
+        if (d) lastDesc = `${db}: ${d}`;
       } catch (err) {
         lastErr = err;
       }
     }
-    if (lastErr) this.log.debug(`queryInAnyDb 全部失败: ${lastErr.message}`);
+    const why = lastErr ? lastErr.message : lastDesc;
+    if (why) {
+      // 节流：轮询约 1.5s 一次，不能每次都刷屏；首次与之后每 40 次各报一次
+      this.qFailStreak = (this.qFailStreak || 0) + 1;
+      if (this.qFailStreak === 1 || this.qFailStreak % 40 === 0) {
+        this.log.warn(
+          `消息库查询失败（已连续 ${this.qFailStreak} 次）：${why}。` +
+          '常见原因是微信重启 / 更新后 hook 拿不到消息库句柄：请完全退出微信（托盘也退）后重开，' +
+          '或用「自动修复」重新部署 DLL。'
+        );
+      }
+    }
+    // 查不到行（正常无新消息）不算失败，不打扰
     return [];
   }
 
@@ -362,6 +442,110 @@ export class Receiver extends EventEmitter {
     const rows = await this.queryInAnyDb(sql, 'message_0.db');
     for (const r of rows) map.set(String(r.rowid), r.user_name);
     return map;
+  }
+
+  /**
+   * 漏接补偿扫描：对「最近 N 条消息」做回路复检，补答被自过滤误标 / 竞态跳过而漏掉的用户消息。
+   *
+   * 为什么需要它（对应「漏接消息」根因）：
+   *   增量轮询只看水位以上的新消息，一旦某条被 markSent 误标为「自己发的」，
+   *   emitMessage 的 selfFilter 会永久丢弃它，且水位已越过，再也不会被重新看到。
+   *   这里直接按 DB 发送者重新判定（real_sender_id → wxid），绕过 selfFilter 被污染的 sent 集合，
+   *   找出「其后没有 Bot 回复」的用户消息并补答。
+   *
+   * 防重复回复的关键约束：只复检「已越过水位」的消息（local_id <= watermark）。
+   *   新消息（> watermark）由正常增量路径独占处理，二者不重叠，因此不会双重回复。
+   *
+   * 发送过快导致的竞态（直接原因）也能被兜住：即便 markSent 把一条用户消息误标，
+   * 下一轮复检仍会因「它后面没有 Bot 回复」而补答。
+   */
+  async reconcile() {
+    if (!this.cfg.reconcileEnabled) return;
+    if (!this.pollPlan.length) return;
+    const selfId = this.selfId;
+    const window = Math.max(3, Math.min(50, Number(this.cfg.reconcileWindow) || 10));
+    for (const p of this.pollPlan) {
+      // 漏接补偿只补 always 群：never 群本就不回；mention 群需 @ 才回，而复检无法判定
+      // 「是否 @ 了我们」，若补答会误回未 @ 的消息。私聊不受 groupReply 限制
+      // （与增量路径一致：私聊消息本就当作明确提问）。
+      const isGroup = (p.chatId || '').endsWith('@chatroom');
+      const gr = p.groupReply || 'always';
+      if (isGroup && gr !== 'always') continue;
+      try {
+        const mark = this.watermark.get(p.chatId) || 0;
+        if (!mark) continue; // 还没接管过该会话，跳过
+        const idRows = await this.queryInAnyDb(buildPollSql(p.chatId, window), p.db);
+        if (!idRows.length) continue;
+        // 只取已越过水位的 id（<= watermark），新消息交给正常增量路径
+        const ids = idRows
+          .map((r) => Number(r.local_id ?? r.msgid))
+          .filter((n) => Number.isFinite(n) && n > 0 && n <= mark)
+          .sort((a, b) => a - b);
+        if (!ids.length) continue;
+
+        const rows = [];
+        const rids = new Set();
+        for (const id of ids) {
+          const rowSql = buildRowSql(p.chatId, id);
+          if (!rowSql) continue;
+          const rr = await this.queryInAnyDb(rowSql, p.db);
+          if (rr.length) {
+            rows.push(rr[0]);
+            if (rr[0].rid != null) rids.add(String(rr[0].rid));
+          }
+        }
+        if (!rows.length) continue;
+        const nameMap = await this.resolveSenders([...rids]);
+
+        // 时间正序：维护「最近一条用户消息」，遇到 Bot 自己的消息即视为已回答
+        let pending = null;
+        const toAnswer = [];
+        for (const r of rows) {
+          const wxid = nameMap.get(String(r.rid)) || '';
+          const isSelf = !!wxid && wxid === selfId; // 直接按 DB 发送者判定，绕过 selfFilter 的污染 sent 集合
+          if (isSelf) {
+            pending = null; // Bot 已回复，前面的用户消息视为已答
+          } else if (wxid) {
+            if (pending) toAnswer.push(pending); // 上一条用户消息到本条之前都没有 Bot 回复 → 漏答
+            pending = r;
+          }
+          // wxid 解析失败则跳过，不误判
+        }
+        if (pending) toAnswer.push(pending); // 最后一条用户消息之后无 Bot 回复
+
+        for (const r of toAnswer) {
+          const key = `${p.chatId}:${r.msgid}`;
+          if (this.reconcileSeen.has(key)) continue; // 本次会话内已派发，避免重复
+          this.reconcileSeen.add(key);
+          r.roomid = p.roomid ?? p.chatId;
+          r.wxid = nameMap.get(String(r.rid)) || '';
+          const msg = normalizeDbRow(r, { selfId, selfMode: this.selfMode, fileStorageBase: this.cfg.wechat?.fileStorageBase || '' });
+          if (!msg) continue;
+          const senderName = this.contacts?.nameOf(msg.senderId, this.selfId);
+          if (senderName) msg.senderName = senderName;
+          const chatName = this.contacts?.nameOf(msg.chatId, this.selfId);
+          if (chatName) msg.chatName = chatName;
+          msg.reconcile = true; // 标记：绕过 selfFilter 的复检消息（air.handle 据此跳过 isSentId 校验）
+          if (!this.remember(dedupeKey(msg))) continue; // 兜底去重
+          this.log.info(`复检补答 ${p.chatId} #${r.msgid}：${String(r.content || '').slice(0, 30)}`);
+          this.emit('message', msg);
+        }
+      } catch (err) {
+        this.log.debug(`复检失败 ${p.chatId}: ${err.message}`);
+      }
+    }
+  }
+
+  /** 启动漏接补偿定时器（独立于轮询，两种接收模式都生效）。 */
+  startReconcile() {
+    if (!this.cfg.reconcileEnabled) return;
+    const ms = Math.max(5000, Math.min(600000, Number(this.cfg.reconcileIntervalMs) || 20000));
+    const window = Math.max(3, Math.min(50, Number(this.cfg.reconcileWindow) || 10));
+    this.reconcileTimer = setInterval(() => {
+      this.reconcile().catch((err) => this.log.debug(`复检异常: ${err.message}`));
+    }, ms);
+    this.reconcileTimer.unref?.();
+    this.log.info(`漏接补偿已启动：每 ${ms}ms 复检最近 ${window} 条消息`);
   }
 
   /**
@@ -401,11 +585,13 @@ export class Receiver extends EventEmitter {
     }
     await this.startPoll();
     this.startWatchdog();
+    this.startReconcile();
   }
 
   async stop() {
     if (this.watchdog) clearInterval(this.watchdog);
     if (this.pollTimer) clearInterval(this.pollTimer);
+    if (this.reconcileTimer) clearInterval(this.reconcileTimer);
     this.saveWatermark();
     if (this.server) await new Promise((r) => this.server.close(r));
   }

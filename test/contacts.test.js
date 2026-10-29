@@ -55,3 +55,40 @@ test('所有库/表都查不到时安全降级（不抛错、名字留空）', a
   assert.equal(cc.activeDb, null);
   assert.equal(cc.nameOf('wxid_z'), '');
 });
+
+test('搜索留空时列出通讯录前几个，方便直接挑', async () => {
+  const hook = fakeHook({
+    tableRows: {
+      'contact.db.contact': [
+        { username: 'wxid_a', nick_name: '甲', remark: '' },
+        { username: 'wxid_b', nick_name: '乙', remark: '' },
+      ],
+    },
+  });
+  const cc = new ContactCache({ hook });
+  const r = await cc.search('', 50);
+  assert.equal(r.ok, true);
+  assert.equal(r.browse, true);
+  assert.equal(r.results.length, 2);
+});
+
+test('关键字搜索命中并写入缓存', async () => {
+  const hook = fakeHook({
+    tableRows: { 'contact.db.contact': [{ username: 'wxid_abc', nick_name: '小明', remark: '' }] },
+  });
+  const cc = new ContactCache({ hook });
+  const r = await cc.search('小明');
+  assert.equal(r.ok, true);
+  assert.equal(r.browse, false);
+  assert.equal(r.results[0].id, 'wxid_abc');
+  assert.equal(cc.nameOf('wxid_abc'), '小明');
+});
+
+test('读不到通讯录表时，搜索返回真实原因而不是假装没匹配', async () => {
+  const hook = fakeHook({ failDbs: ['contact.db', 'MicroMsg.db', 'MicroMsg.db.bak'] });
+  const cc = new ContactCache({ hook });
+  const r = await cc.search('测试');
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /通讯录表/);
+  assert.deepEqual(r.results, []);
+});

@@ -20,6 +20,9 @@ export async function run(ctx) {
       apiKey: cfg.ai.apiKey,
       model: cfg.ai.model,
       timeoutMs: cfg.ai.timeoutMs,
+      reasoningEffort: cfg.ai.reasoningEffort,
+      reasoningFormat: cfg.ai.reasoningFormat,
+      reasoningBudget: cfg.ai.reasoningBudget,
     });
     if (ctx.flag('json')) {
       json(r);
@@ -28,6 +31,9 @@ export async function run(ctx) {
     section('测试模型连接');
     line('ok', '接口地址', cfg.ai.baseUrl ? cfg.ai.baseUrl : '(没填，先跑 autochat setup)');
     line('ok', '模型名', cfg.ai.model ? cfg.ai.model : '(没填)');
+    if (cfg.ai.reasoningEffort && cfg.ai.reasoningEffort !== 'off') {
+      line('ok', '思考强度', cfg.ai.reasoningEffort + '（' + cfg.ai.reasoningFormat + '）');
+    }
     if (r.ok) {
       line('ok', '成功', '耗时 ' + r.ms + ' 毫秒 · ' + r.model);
       console.log('  ' + r.reply);

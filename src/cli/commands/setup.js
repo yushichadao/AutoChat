@@ -7,6 +7,7 @@ import { detectBuiltinDll } from '../../tasks/autodll.js';
 import { writeEditableEnv } from '../../tasks/config.js';
 import { writeChats } from '../../core/chats.js';
 import { discoverLocal, groupedProviders, listModels, testChat } from '../../tasks/model.js';
+import { parseEffort } from './effort.js';
 
 /**
  * autochat setup —— 唯一的初始化向导（CLI 与图形化配置器共用同一套判断）。
@@ -61,7 +62,7 @@ export async function run(ctx) {
           const w = writeEditableEnv({ WX_DLL_PATH: d.path }, ROOT);
           line('ok', '已写入 hook DLL', w.changed.join('、') + ' → ' + d.path);
         } else {
-          line('warn', '没匹配到内置 DLL', '需要自己准备匹配版本的 hook DLL');
+          line('warn', '没匹配到内置 DLL', '发布包自带适配 DLL，请确认 WX_INSTALL_DIR 指对了微信安装目录，或该微信版本暂无适配');
         }
       } else if (s.action.kind === 'model') {
         await configureModel(prompter);
@@ -147,8 +148,18 @@ async function configureModel(prompter) {
     }
   }
 
+  // 思考强度：推理模型想多久再回答。想省 token 就留空（关闭）。
+  // 只在真人交互时问 —— 管道喂输入的脚本不该多消耗一行输入。
+  let effort = '';
+  if (prompter.isTty) {
+    const effortRaw = await prompter.ask('  思考强度（off/低/中/高，回车=关闭）', '');
+    effort = parseEffort(effortRaw);
+    if (effortRaw && !effort) hint('看不懂这个值，按「关闭」处理');
+  }
+
   const updates = { AI_BASE_URL: base, AI_MODEL: model, AI_ENABLED: '1' };
   if (key) updates.AI_API_KEY = key;
+  if (effort) updates.AI_REASONING_EFFORT = effort;
   const w = writeEditableEnv(updates, ROOT);
   line('ok', '已保存', w.changed.join('、'));
 }

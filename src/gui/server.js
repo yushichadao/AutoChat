@@ -14,6 +14,7 @@ import * as apiService from './api/service.js';
 import * as apiInstall from './api/install.js';
 import * as apiLogs from './api/logs.js';
 import * as apiOnboard from './api/onboard.js';
+import * as apiFs from './api/fs.js';
 
 /**
  * 图形化配置器的服务端（与命令行平级的另一套入口）。
@@ -39,7 +40,7 @@ const MIME = {
 
 /** 所有接口路由（方法 + 路径 → 处理函数）。 */
 const ROUTES = new Map();
-for (const mod of [apiState, apiAi, apiEnv, apiChats, apiService, apiInstall, apiLogs, apiOnboard]) {
+for (const mod of [apiState, apiAi, apiEnv, apiChats, apiService, apiInstall, apiLogs, apiOnboard, apiFs]) {
   for (const [key, fn] of Object.entries(mod.routes)) ROUTES.set(key, fn);
 }
 
@@ -63,13 +64,57 @@ export async function startGui({ rootDir = ROOT, port = 8788, window = false } =
   const dataDir = path.join(rootDir, 'data');
   const guiStateFile = path.join(dataDir, 'gui.json');
   const token = crypto.randomBytes(16).toString('hex');
+  // 测试专用开关：仅当显式设置 AC_TEST_NOAUTH=1 时跳过令牌校验，便于无头浏览器自动化访问。
+  // 默认关闭（undefined / 非 '1' 一律走正常校验），生产环境不受影响。切勿在真实运行中长期开启。
+  const noAuth = process.env.AC_TEST_NOAUTH === '1';
+
+  // 403 提示页（自包含：不引外部 CSS/JS，离线可用；绝不回显当前令牌）。
+  // 以前只回一行纯文本，用户看到「令牌无效」根本不知道该干什么。
+  const FORBIDDEN_PAGE = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>打不开配置器 · AutoChat</title>
+<style>
+body{margin:0;font:15px/1.7 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;background:#f4f5f7;color:#1f2329;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.box{background:#fff;border:1px solid #e2e5ea;border-radius:10px;padding:24px;max-width:560px;width:100%}
+h1{margin:0 0 12px;font-size:19px}
+ol{margin:8px 0 16px;padding-left:22px}
+li{margin:4px 0}
+.cmd{display:flex;align-items:center;gap:8px;background:#f0f1f3;border:1px solid #e2e5ea;border-radius:6px;padding:10px 12px;margin:12px 0 8px}
+code{flex:1;font-family:Consolas,monospace;font-size:14px;word-break:break-all}
+button{border:1px solid #cfe0ff;background:#eef4ff;color:#2563eb;border-radius:6px;padding:5px 12px;font-size:13px;cursor:pointer}
+button:hover{background:#cfe0ff}
+.hint{color:#6b7280;font-size:13px;margin:0}
+</style></head><body><div class="box">
+<h1>打不开配置器</h1>
+<p>链接里的令牌不对，通常是下面两种情况之一：</p>
+<ol>
+<li><b>配置器没在跑</b>——关掉过命令行窗口、或重启过电脑，配置器就停了。</li>
+<li><b>这个链接是旧的</b>——每次启动配置器都会换一个新令牌，以前保存的链接会失效。</li>
+</ol>
+<div class="cmd"><code id="c">autochat gui</code><button id="b" type="button">复制</button></div>
+<p class="hint">在项目目录里运行上面这条命令，会重新打开一个带正确令牌的窗口。</p>
+<script>
+document.getElementById('b').onclick=function(){
+  var t=document.getElementById('c').textContent,b=document.getElementById('b');
+  var done=function(){b.textContent='已复制';setTimeout(function(){b.textContent='复制';},1500);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fallback);}else{fallback();}
+  function fallback(){var r=document.createRange();r.selectNode(document.getElementById('c'));
+    var s=window.getSelection();s.removeAllRanges();s.addRange(r);
+    try{document.execCommand('copy');}catch(e){}done();}
+};
+</script></div></body></html>`;
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://' + (req.headers.host || '127.0.0.1'));
     const given = url.searchParams.get('token') || req.headers['x-autochat-token'];
-    if (given !== token) {
-      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('令牌无效。请用命令行启动：autochat gui');
+    if (!noAuth && given !== token) {
+      // 页面访问 → 中文提示页；接口访问 → 仍给结构化错误，不破坏调用方解析。鉴权逻辑不变。
+      if (url.pathname.indexOf('/api/') === 0) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: '令牌无效，请重新运行 autochat gui 打开配置器' }));
+      } else {
+        res.writeHead(403, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(FORBIDDEN_PAGE);
+      }
       return;
     }
 

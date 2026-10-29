@@ -20,8 +20,8 @@ export async function run(ctx) {
   }
   line('ok', '微信版本', r.version);
   if (!r.path) {
-    line('warn', '没有匹配的内置 DLL', '这个版本暂无内置方案，需要自己准备匹配的 hook DLL');
-    hint('把 DLL 路径填进 .env 的 WX_DLL_PATH');
+    line('warn', '没有匹配的内置 DLL', '发布包自带适配 DLL，但这个微信版本暂无方案；确认 WX_INSTALL_DIR 后重试');
+    hint('如果你有匹配版本的 DLL，也可把路径填进 .env 的 WX_DLL_PATH');
     return;
   }
   line('ok', '匹配到', r.path);

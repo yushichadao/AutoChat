@@ -30,11 +30,14 @@ export const PROFILES = [
   {
     wechat: '4.1.10.27',
     dll: 'aixed/WeChat-Hook（main）',
+    // 仅用于界面展示：本仓实际附带并部署的是这份自制 DLL（原名已按 AC-<微信版本> 规范改名）。
+    // dll 字段保持原值 —— resolveBuiltinDll 靠 includes('aixed') 做版本匹配，不能改。
+    dllLabel: 'version-ac-4.1.10.27.dll（本仓 tools/wxhook/ 自制）',
     url: 'https://github.com/aixed/WeChat-Hook',
     license: '源码公开',
     send: true,
     recv: false,
-    note: 'main 分支已移除消息接收 hook 与 PB/CDN 相关代码，只能调用发送类接口；接收需靠 /QueryDB/execute 轮询（本项目已内置对应 version-aixed.dll，见 tools/wxhook/WeChat-Hook-main/）',
+    note: 'main 分支已移除消息接收 hook 与 PB/CDN 相关代码，只能调用发送类接口；接收需靠 /QueryDB/execute 轮询（本项目 4.1.10.27 的自制 DLL 已改名为 version-ac-4.1.10.27.dll，见 tools/wxhook/）',
   },
   {
     wechat: '4.1.8.67',
@@ -101,21 +104,23 @@ export function resolveProfile(version) {
   return { level: 'none', profile: null, candidates: [] };
 }
 
-/** 给人看的一句话结论。 */
+/** 给人看的一句话结论。level 必须带回 —— autoRepair 靠它区分「精确支持」与「要重装」。 */
 export function describeSupport(version) {
   const r = resolveProfile(version);
   if (r.level === 'exact') {
     return {
       ok: true,
-      text: `精确匹配 ${r.profile.wechat} → ${r.profile.dll}（${r.profile.license}）`,
+      level: 'exact',
+      text: `精确匹配 ${r.profile.wechat} → ${r.profile.dllLabel || r.profile.dll}（${r.profile.license}）`,
       profile: r.profile,
     };
   }
   if (r.level === 'patch') {
     return {
       ok: false,
+      level: 'patch',
       text:
-        `${version} 没有精确方案；同系列只有 ${r.profile.wechat} → ${r.profile.dll}（${r.profile.license}）。` +
+        `${version} 没有精确方案；同系列只有 ${r.profile.wechat} → ${r.profile.dllLabel || r.profile.dll}（${r.profile.license}）。` +
         '补丁号不同，进程内偏移大概率已变，不能直接套用',
       profile: r.profile,
     };
@@ -123,11 +128,12 @@ export function describeSupport(version) {
   if (r.level === 'minor') {
     return {
       ok: false,
-      text: `${version} 没有对应 DLL；最近的方案是 ${r.profile.wechat} → ${r.profile.dll}`,
+      level: 'minor',
+      text: `${version} 没有对应 DLL；最近的方案是 ${r.profile.wechat} → ${r.profile.dllLabel || r.profile.dll}`,
       profile: r.profile,
     };
   }
-  return { ok: false, text: `没有 ${version} 的已知 hook 方案`, profile: null };
+  return { ok: false, level: 'none', text: `没有 ${version} 的已知 hook 方案`, profile: null };
 }
 
 /** 当前 DLL 是否具备收消息能力（看档案，不看配置）。 */

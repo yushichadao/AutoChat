@@ -40,11 +40,12 @@ test('会话分表名 = Msg_ + md5(会话id)', () => {
 });
 
 test('轮询批次只取 local_id；单行明细取完整内容', () => {
-  // 批次只取主键：hook 对「多列 + message_content + WHERE local_type=1」查询会返回空，
+  // 批次只取主键：hook 对「多列 + message_content + WHERE」查询会返回空，
   // 因此批次严禁选 message_content / JOIN，正文靠 buildRowSql 逐条取。
+  // 类型过滤需含文件(49)/图片(3)/语音(34)/视频(43)/表情(47)+文本(1)，否则文件类消息进不来。
   const batch = buildPollSql('123@chatroom', 20);
   assert.match(batch, /SELECT local_id FROM/);
-  assert.match(batch, /local_type = 1/);
+  assert.match(batch, /local_type IN \(1,3,34,43,47,49\)/);
   assert.match(batch, /LIMIT 20/);
   assert.ok(!/message_content/.test(batch), '批次不能选 message_content');
   assert.ok(!/Name2Id/.test(batch), '批次不能 JOIN');

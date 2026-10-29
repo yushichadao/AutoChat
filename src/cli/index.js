@@ -33,7 +33,7 @@ const ctx = {
 
 const COMMANDS = [
   'status', 'doctor', 'setup', 'install', 'uninstall', 'start', 'stop', 'pause', 'resume',
-  'logs', 'context', 'chats', 'config', 'lock', 'autodll', 'self', 'model', 'version', 'gui',
+  'logs', 'context', 'memory', 'chats', 'config', 'lock', 'autodll', 'self', 'model', 'effort', 'persona', 'version', 'gui',
 ];
 
 function printHelp() {
@@ -57,10 +57,13 @@ function printHelp() {
   console.log('  autochat model test       测试当前模型配置能不能用');
   console.log('  autochat model list       列出服务端有哪些模型');
   console.log('  autochat model service    本地模型服务：status / start / stop');
+  console.log('  autochat effort [档位]     思考强度：off / low / medium / high（不带参数＝查看）');
+  console.log('  autochat persona [--init] [--set 绝对路径] [--name 人设名]   查看 / 生成 / 指定人设文件');
   console.log('');
   console.log(paint('bold', '管理'));
   console.log('  autochat chats list|add|rm|enable|disable <会话id>');
   console.log('  autochat context [会话id] [--clear]            查看 / 清空上下文记忆');
+  console.log('  autochat memory [list|summarize|export|clear]  长期记忆摘要（持久、可导出）');
   console.log('  autochat config get|set                      读 / 写 .env');
   console.log('  autochat lock [--status]                     锁定微信版本（阻断自动更新）');
   console.log('  autochat autodll [--write]                   按微信版本自动匹配 hook DLL');

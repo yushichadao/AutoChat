@@ -39,11 +39,12 @@ export async function run(ctx) {
     }
   }
 
-  const finalId = cfg.wechat.selfId || fromProfile || fromDb;
+  const finalId = fromProfile || fromDb || cfg.wechat.selfId;
+  const src = fromProfile ? 'hook /GetSelfProfile' : fromDb ? '本地库兜底' : cfg.wechat.selfId ? '.env WX_SELF_ID' : '（未拿到）';
   if (ctx.flag('json')) {
-    json({ selfId: finalId, fromProfile, fromDb, configured: Boolean(cfg.wechat.selfId) });
+    json({ selfId: finalId, fromProfile, fromDb, configured: Boolean(cfg.wechat.selfId), source: src });
     return;
   }
   line(finalId ? 'ok' : 'bad', '最终用于排除自己消息的 wxid',
-    finalId ? finalId : '（拿不到，会自问自答，建议手填 WX_SELF_ID）');
+    finalId ? finalId + ' ｜来源：' + src : '（拿不到，会自问自答，建议检查 hook 连接 / 微信登录）');
 }

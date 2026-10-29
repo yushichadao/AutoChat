@@ -15,7 +15,7 @@
 >
 > 另外两条硬边界：
 > 4. **只在自己电脑上、用自己的微信号**。对他人设备、他人账号注入或读取，可能触及**非法侵入计算机信息系统罪（285 条）、破坏计算机信息系统罪（286 条）**。
-> 5. **不打包分发第三方 hook DLL**；仓库里随附的二进制来源与许可见 [docs/DLL-SOURCES.md](docs/DLL-SOURCES.md)，版权归原作者。
+> 5. **不打包分发第三方 hook DLL**——但**维护者为本项目专门适配的自制 hook DLL 随发布包直接提供**（开箱即用，见 [docs/dll-sources.md](docs/dll-sources.md) 的「维护者自制」行），用户无需自行寻找或下载第三方 DLL；第三方方案的来源与许可同样见该文。
 
 ---
 
@@ -29,11 +29,11 @@
 
 | 你是 | 从哪开始 |
 | --- | --- |
-| 会用电脑但不想碰命令行 | 下载便携版解压双击（`docs/GETTING-STARTED.md` 方式 A）或 `npm run gui` |
+| 会用电脑但不想碰命令行 | 下载便携版解压双击（`docs/getting-started.md` 方式 A）或 `npm run gui` |
 | 会 cmd / PowerShell，想脚本化 | `npm run doctor` → `npm run setup` → `npm start` |
 | 想读代码做二次开发 | `src/` 六层结构，见 [CONTRIBUTING.md](CONTRIBUTING.md) |
 
-**三分钟上手**（完整版见 [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)）
+**三分钟上手**（完整版见 [docs/getting-started.md](docs/getting-started.md)）
 
 ```bash
 node -v                      # 需要 18 以上（推荐 22 LTS）
@@ -47,6 +47,17 @@ npm start                    # 启动（需要管理员时用 npm start -- --ele
 验证：手机用**另一个号**给电脑上的小号发一句「你好」，几秒内应该收到回复。
 
 不想装 Node、想给小白一个「下载解压、双击即开」的包？见下方「便携版构建」。
+
+---
+
+## v2.0.0 新增能力
+
+- **多模态（图 → 文 / 文 → 图）**：带图的消息走视觉模型理解；出站图片 / 文件以原生微信消息发回（不是 markdown 围栏）。入站图片有体积护栏，超体积不送模型、不写日志字节、不落盘。图形化配置器可单独设「视觉模型」。
+- **长期记忆摘要**：`autochat memory` 把对话沉淀为持久、可跨会话、可导出、可清空的摘要，并在回复时回注上下文，隔天仍记得偏好 / 约定。
+- **体检拆分**：`autochat chats check`（或 `autochat doctor --scope chats`）独立查看「哪些群在听」；与 `autochat doctor` 的环境 / 基础设施体检互不混淆。图形化配置器也有独立的「群可用性」卡。
+- **限流可观测**：`autochat status` 展示冷却 / 每小时配额 / 并发三类独立跳过计数，便于排查「为什么没回」。
+
+详见 [2.0.0 计划](docs/plan-2.0.0.md) 与 [测试方案](docs/test-plan.md)。
 
 ---
 
@@ -68,7 +79,30 @@ npm start                    # 启动（需要管理员时用 npm start -- --ele
 
 npm 脚本只是命令行的薄别名：`npm run doctor` ≡ `autochat doctor`。
 
-**完整的命令清单**：[docs/COMMANDS.md](docs/COMMANDS.md)
+**完整的命令清单**：[docs/commands.md](docs/commands.md)
+
+---
+
+## 第三个入口：DeepSeek Harness 插件（外壳，不替代前两个）
+
+AutoChat 同时是 **DeepSeek Harness（dsh）的插件**：在对话里查体检、启停服务、暂停回复、改配置、匹配 hook DLL。
+**它只是外壳 + 拦截器** —— 所有判定与落盘仍然走 `src/tasks/`，插件里没有第二套配置逻辑：
+
+```
+plugin/dsh-autochat/        组合包（自洽的 npm 包）
+├── package.json            组合包清单：dsh.bundle.patch
+├── cordis.patch.yml        插入一行插件：id=autochat → name=dsh-autochat
+├── index.js                Cordis 插件入口：注册 12 个工具 + 1 个技能
+├── lib/{cli,tools,skill,mcp}.js  与 AutoChat 对话的那一层 / 工具实现 / 技能 / MCP 传输
+└── assets/autochat-console.md     技能正文（七步不可跳的操作纪律）
+```
+
+装它的方式：DSH → 插件 → 添加插件 → 填 **本地目录** `plugin\dsh-autochat`（或 GitHub 仓库地址，发布到 npm 后也可以填包名 `dsh-autochat`）。
+
+> [!IMPORTANT]
+> **装插件不等于配好了。** 根本性配置七步（Node → 微信 → 锁版本 → hook DLL → 模型 → 小号 → 起服务）
+> 一步都没少，插件做的事是「把这些步骤摆到你面前，并在没走完时拦住你启动」。
+> 详见 [docs/plugin.md](docs/plugin.md)。
 
 ---
 
@@ -102,7 +136,7 @@ hook DLL 与**微信版本强绑定**，微信一更新就失效（更新会直�
 | 模型连接失败 | 本地模型服务没开 | `autochat model service start`（Ollama 等） |
 | 卸载后微信还是不能更新 | 旧版本的卸载没解除更新阻断 | 2.0.0 已修；`autochat uninstall` |
 
-**完整清单（含代码位置与自愈措施）**：[docs/FAILURE-MODES.md](docs/FAILURE-MODES.md)
+**完整清单（含代码位置与自愈措施）**：[docs/failure-modes.md](docs/failure-modes.md)
 
 ---
 
@@ -110,13 +144,14 @@ hook DLL 与**微信版本强绑定**，微信一更新就失效（更新会直�
 
 | 文档 | 讲什么 |
 | --- | --- |
-| [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) | 换一台机器的十分钟上手清单 |
-| [docs/COMMANDS.md](docs/COMMANDS.md) | 全部命令、退出码、JSON 输出、配置项速查 |
-| [docs/EXPERIENCE-AUDIT.md](docs/EXPERIENCE-AUDIT.md) | 站在五种使用者角度的体验审计与能力对照表 |
-| [docs/FAILURE-MODES.md](docs/FAILURE-MODES.md) | 11 类「挂掉」现象的根因、检测与自愈 |
-| [docs/LOGIC-UI-ISSUES.md](docs/LOGIC-UI-ISSUES.md) | 逐条核实过的逻辑与界面缺陷清单 |
-| [docs/GLOSSARY.md](docs/GLOSSARY.md) | 术语表（统一叫法与禁用词） |
-| [docs/DLL-SOURCES.md](docs/DLL-SOURCES.md) | 随仓库提供的 hook DLL 来源、适配版本与许可 |
+| [docs/getting-started.md](docs/getting-started.md) | 换一台机器的十分钟上手清单 |
+| [docs/commands.md](docs/commands.md) | 全部命令、退出码、JSON 输出、配置项速查 |
+| [docs/plugin.md](docs/plugin.md) | CodeBuddy 插件：装法、工具清单、门槛设计、排障 |
+| [docs/experience-audit.md](docs/experience-audit.md) | 站在五种使用者角度的体验审计与能力对照表 |
+| [docs/failure-modes.md](docs/failure-modes.md) | 11 类「挂掉」现象的根因、检测与自愈 |
+| [docs/logic-ui-issues.md](docs/logic-ui-issues.md) | 逐条核实过的逻辑与界面缺陷清单 |
+| [docs/glossary.md](docs/glossary.md) | 术语表（统一叫法与禁用词） |
+| [docs/dll-sources.md](docs/dll-sources.md) | 随仓库提供的 hook DLL 来源、适配版本与许可 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更（2.0.0 有破坏性变更，看迁移指引） |
 | [LEGAL.md](LEGAL.md) | 法律与合规说明（必读） |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 目录结构、命令表、测试与提交规范 |
@@ -135,7 +170,7 @@ powershell -ExecutionPolicy Bypass -File tools/build-portable.ps1
 解压后双击 `AutoChat.bat` 就能打开图形化配置器，**离线也能开**；模型（Ollama 引擎 + 小模型）在首启向导里一键联网拉取。
 
 > 脚本首次会尝试从 nodejs.org 下载匹配版本的 `node.exe`；若网络受限，把对应 win-x64 的 `node.exe` 放到 `dist/` 再跑即可。
-> 发布到 GitHub Releases 时附上这个 zip，小白就走「方式 A」了（见 [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)）。
+> 发布到 GitHub Releases 时附上这个 zip，小白就走「方式 A」了（见 [docs/getting-started.md](docs/getting-started.md)）。
 
 ---
 
@@ -148,6 +183,7 @@ powershell -ExecutionPolicy Bypass -File tools/build-portable.ps1
 | `AI_ENABLED` | **自动回复开关**（0 = 只收消息不回复） |
 | `AI_BASE_URL` / `AI_MODEL` / `AI_API_KEY` | 模型地址（到 `/v1` 为止）/ 模型名 / 密钥 |
 | `AI_GROUP_REPLY` | 群聊什么时候回：`never` / `mention`（默认）/ `always` |
+| `AI_REASONING_EFFORT` | 思考强度：`off`（默认）/ `low` / `medium` / `high`（命令行 `autochat effort high`） |
 | `AI_GROUP_AT_NAMES` | 群里被 @ 时认可的称呼，**强烈建议填**（不填时任意 @ 都会触发） |
 | `WX_SELF_ID` / `WX_SELF_MODE` | 本机 wxid / 判定方式（`sender` 小号、`id` 同号） |
 | `WX_DLL_PATH` | hook DLL 绝对路径（`autochat autodll --write` 可自动填） |
@@ -203,7 +239,7 @@ autochat uninstall --force      # 连我们部署的 version.dll 一起删（谨
 ```bash
 git clone https://github.com/yushichadao/AutoChat.git
 cd AutoChat && npm install
-npm test              # 123 项，应全绿
+npm test              # 231 项，应全绿
 npm run demo          # 不需要 DLL 与 API Key 跑通全链路
 npm run doctor        # 在你自己的机器上体检
 ```

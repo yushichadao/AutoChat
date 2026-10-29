@@ -87,6 +87,7 @@
       <a href="#start">快速开始</a>
       <a href="#compliance">合规与安全</a>
       <a href="#demo">演示</a>
+      <a href="#compat">兼容</a>
       <a href="https://github.com/yushichadao/AutoChat">GitHub</a>
     </div>
   </div>
@@ -111,9 +112,9 @@
     <div class="grid" style="margin-top:26px">
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1.5"/><path d="M9 13v2"/><path d="M15 13v2"/></svg></div><h3>本地 AI 自动回复</h3><p>接 OpenAI 兼容模型，本地或云端都行。群聊 / 私聊分别施策，支持触发前缀、@ 认可、人设与上下文记忆。</p></div>
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 10-4-2.4-7-5.5-7-10V6z"/></svg></div><h3>一键暂停自动回复</h3><p>一行命令 <code>autochat pause</code> 立刻停掉自动回复（仍接收、仍记录），<code>resume</code> 恢复。<b>自动化最怕停不下来，所以它最好找。</b></p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="8.5" y="3" width="7" height="7" rx="1"/></svg></div><h3>零运行时依赖</h3><p>纯 Node.js ESM，无构建步骤、无 TypeScript、无框架。克隆即跑，<code>npm test</code> 123 项测试全绿。</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="8.5" y="3" width="7" height="7" rx="1"/></svg></div><h3>零运行时依赖</h3><p>纯 Node.js ESM，无构建步骤、无 TypeScript、无框架。克隆即跑，<code>npm test</code> 231 项测试全绿。</p></div>
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg></div><h3>图形化配置器</h3><p>不懂命令行也能用：<code>autochat gui</code> 打开网页配置模型、会话、护栏，安装 / 卸载、状态一目了然。</p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5"/><path d="M15 3v5"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v4"/></svg></div><h3>本机 hook 注入</h3><p>通过第三方 hook DLL 读写本机微信进程收发消息。仓库随附部分 hook DLL（作者自制与第三方来源，来源与许可见 <code>docs/DLL-SOURCES.md</code>）。</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5"/><path d="M15 3v5"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v4"/></svg></div><h3>本机 hook 注入</h3><p>通过 hook DLL 读写本机微信进程收发消息。发布包随附维护者专为 AutoChat 自制、适配的 hook DLL（开箱即用）；第三方来源方案的许可见 <code>docs/dll-sources.md</code>。</p></div>
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M8 21h8"/><path d="M6 7h12"/><path d="M6 7L3 13a3 3 0 0 0 6 0z"/><path d="M18 7l3 6a3 3 0 0 1-6 0z"/></svg></div><h3>内置合规护栏</h3><p>webhook 鉴权、自身消息过滤、限流、并发上限、否定语义拒绝——挡住技术事故，并明确合法使用边界。</p></div>
     </div>
   </div>
@@ -201,6 +202,29 @@ autochat status       # 状态总览（服务 / 自动回复 / 配置 / 上下�
   </div>
 </section>
 
+<section id="compat" style="background:var(--bg-soft)">
+  <div class="wrap">
+    <div class="eyebrow">版本与兼容</div>
+    <h2>版本兼容矩阵（当前可打通）</h2>
+    <p class="lede" style="margin-bottom:18px">当前版本桥（自研 hook DLL <code>AC-4.1.10.27</code> ↔ 微信 <code>4.1.10.27</code>）已验证可打通使用。各组件版本<b>严格绑定</b>，请勿混用。</p>
+    <div class="card" style="padding:6px 0;background:transparent;border:none">
+      <table style="width:100%;border-collapse:collapse;font-size:14.5px">
+        <thead><tr style="color:var(--dim);text-align:left"><th style="padding:10px 12px;border-bottom:1px solid var(--line)">组件</th><th style="padding:10px 12px;border-bottom:1px solid var(--line)">当前可用版本</th><th style="padding:10px 12px;border-bottom:1px solid var(--line)">约束 / 备注</th></tr></thead>
+        <tbody>
+          <tr><td style="padding:10px 12px;border-bottom:1px solid var(--line)">AutoChat</td><td style="padding:10px 12px;border-bottom:1px solid var(--line)"><code>2.0.0</code></td><td style="padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim)">助手服务本体</td></tr>
+          <tr><td style="padding:10px 12px;border-bottom:1px solid var(--line)">版本桥 / 自研 hook DLL</td><td style="padding:10px 12px;border-bottom:1px solid var(--line)"><code>AC-4.1.10.27</code>（<code>version-ac-4.1.10.27.dll</code>）</td><td style="padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim)">须与微信版本精确一致；由 <code>autodll</code>+<code>lock</code> 锁定，禁止随意更换</td></tr>
+          <tr><td style="padding:10px 12px;border-bottom:1px solid var(--line)">微信（Windows）</td><td style="padding:10px 12px;border-bottom:1px solid var(--line)"><code>4.1.10.27</code></td><td style="padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim)">旧版；新大版本须重新匹配 DLL</td></tr>
+          <tr><td style="padding:10px 12px;border-bottom:1px solid var(--line)">Node</td><td style="padding:10px 12px;border-bottom:1px solid var(--line)"><code>&gt;=18</code>（实测 18/20/22）</td><td style="padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim)">运行环境</td></tr>
+          <tr><td style="padding:10px 12px">操作系统</td><td style="padding:10px 12px"><code>Windows 10/11</code></td><td style="padding:10px 12px;color:var(--dim)">不支持手机 / iOS / Android</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout" style="margin-top:20px;border-left-color:var(--danger)">
+      <b>依赖地狱预警：</b>AutoChat / hook DLL / 微信 / Node <b>版本互相绑定，禁止混用</b>。DLL 与微信版本错配会直接断桥（历史上换 DLL 曾致整项目失灵），这是有意根基设计、不做「自动跨版本换 DLL」；微信大版本更新后须用 <code>autodll</code> 重锁 DLL。项目<b>零运行时依赖</b>（<code>dependencies:{}</code>），不要 <code>npm install</code> 额外包，否则破坏零依赖契约、引发冲突。同一微信账号勿同时跑多个实例。本项目无自动更新，<code>doctor</code> / <code>version</code> 会提示版本过旧。
+    </div>
+    <p class="lede" style="margin-top:18px;font-size:14.5px">完整矩阵与升级指引见 <a href="docs/plan-2.0.0.md" style="color:var(--accent)">2.0.0 计划 §11</a>；升级前对照 <a href="CHANGELOG.md" style="color:var(--accent)">CHANGELOG</a>。</p>
+  </div>
+</section>
 <footer>
   <div class="wrap">
     <div>
@@ -213,9 +237,16 @@ autochat status       # 状态总览（服务 / 自动回复 / 配置 / 上下�
       <a href="LEGAL.md">LEGAL</a>
       <a href="SECURITY.md">Security</a>
       <a href="LICENSE">License</a>
-      <a href="docs/GETTING-STARTED.md">上手</a>
-      <a href="docs/FAILURE-MODES.md">排障</a>
-      <a href="docs/GLOSSARY.md">术语</a>
+      <a href="docs/getting-started.md">上手</a>
+      <a href="docs/failure-modes.md">排障</a>
+      <a href="docs/glossary.md">术语</a>
+<a href="docs/test-plan.md">测试方案</a>
+<a href="docs/plan-2.0.0.md">2.0.0 计划</a>
+      <a href="docs/commands.md">命令参考</a>
+      <a href="docs/plugin.md">插件与 MCP</a>
+      <a href="docs/dll-sources.md">DLL 来源</a>
+      <a href="docs/experience-audit.md">体验审计</a>
+      <a href="docs/logic-ui-issues.md">逻辑与界面缺陷</a>
     </div>
   </div>
 </footer>
@@ -237,7 +268,7 @@ autochat status       # 状态总览（服务 / 自动回复 / 配置 / 上下�
       {c:'title', s:'环境体检结果'},
       {c:'ok', s:'✓ Node.js  v24.0.0'},
       {c:'ok', s:'✓ 微信客户端  4.1.10.27（已安装）'},
-      {c:'ok', s:'✓ hook DLL  内置 version-aixed.dll'},
+      {c:'ok', s:'✓ hook DLL  内置 version-ac-4.1.10.27.dll'},
       {c:'dim', s:'按任意键继续…'}
     ]},
     { lines:[
@@ -250,12 +281,12 @@ autochat status       # 状态总览（服务 / 自动回复 / 配置 / 上下�
     ]},
     { lines:[
       {c:'title', s:'检测到微信 4.1.10.27，使用内置 DLL？'},
-      {c:'dim', s:'tools/wxhook/WeChat-Hook-main/version-aixed.dll（版本精确匹配）'},
+      {c:'dim', s:'tools/wxhook/version-ac-4.1.10.27.dll（版本精确匹配）'},
       {menu:[{s:'Y（默认）',hl:true},{s:'n'}]}
     ]},
     { lines:[
       {c:'ok', s:'✓ 检测微信安装'},
-      {c:'dim', s:'已写入 WX_DLL_PATH = 内置 version-aixed.dll'}
+      {c:'dim', s:'已写入 WX_DLL_PATH = 内置 version-ac-4.1.10.27.dll'}
     ]},
     { lines:[
       {c:'title', s:'选择模型来源'},

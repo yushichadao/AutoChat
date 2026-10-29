@@ -44,13 +44,16 @@ const escape = (s) => String(s).replace(/'/g, "''");
  * 当结果集里「任一行的 message_content 无法被序列化」时，hook 会把整条查询
  * 返回空（status=0、data=[]，不报错）。而「SELECT message_content + WHERE
  * local_type=1」会命中全群文本消息，只要有一条坏内容（某些 BLOB / zstd）整批
- * 就落空，机器人从而永远收不到消息 → 表现为「AI 无反应」。
+ * 就落空，助手从而永远收不到消息 → 表现为「AI 无反应」。
  * 因此批次只取主键，正文用 buildRowSql 逐条按 local_id 取。
  */
 export function buildPollSql(chatId, limit = 30) {
   const table = chatTable(chatId);
   const lim = Number(limit) || 30;
-  return `SELECT local_id FROM ${table} WHERE local_type = 1 ORDER BY local_id DESC LIMIT ${lim}`;
+  // 不只取文本：1=文本 3=图片 34=语音 43=视频 47=表情 49=应用消息(文件/链接/小程序…)
+  // 否则文件类消息永远进不来（入站附件缺口的根因）。批次只取主键，正文仍逐条取，不会触发 hook 空返回。
+  const types = [1, 3, 34, 43, 47, 49].join(',');
+  return `SELECT local_id FROM ${table} WHERE local_type IN (${types}) ORDER BY local_id DESC LIMIT ${lim}`;
 }
 
 /**
@@ -66,6 +69,7 @@ export function buildRowSql(chatId, localId) {
     `SELECT local_id AS msgid,` +
     ` real_sender_id AS rid,` +
     ` create_time AS createTime,` +
+    ` local_type AS type,` +
     ` message_content AS content` +
     ` FROM ${table} WHERE local_id = ${id}`
   );
@@ -73,15 +77,21 @@ export function buildRowSql(chatId, localId) {
 
 /**
  * 一次性生成多个会话的轮询 SQL。
- * @returns {{chatId:string, db:string, sql:string}[]}
+ * @param {string[]} chatIds
+ * @param {{limit?:number, dbBase?:string, groupReplyFor?:(chatId:string)=>string}} [opts]
+ *   groupReplyFor 可选：把每群的群聊策略（never/mention/always）带进 plan，
+ *   供漏接补偿（reconcile）据此跳过 never / mention 群，避免给「本就不回」的群补答。
+ * @returns {{chatId:string, db:string, table:string, limit:number, sql:string, groupReply?:string}[]}
  */
-export function buildPollPlan(chatIds, { limit = 30, dbBase = 'message_0.db' } = {}) {
+export function buildPollPlan(chatIds, { limit = 30, dbBase = 'message_0.db', groupReplyFor = null } = {}) {
   const out = [];
   for (const id of chatIds) {
     const chatId = String(id || '').trim();
     if (!chatId) continue;
     const db = chatDb(chatId, dbBase);
-    out.push({ chatId, db, table: chatTable(chatId), limit, sql: buildPollSql(chatId, limit) });
+    const entry = { chatId, db, table: chatTable(chatId), limit, sql: buildPollSql(chatId, limit) };
+    if (groupReplyFor) entry.groupReply = groupReplyFor(chatId);
+    out.push(entry);
   }
   return out;
 }

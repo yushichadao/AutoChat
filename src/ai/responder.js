@@ -4,6 +4,8 @@
  * 清洗和拆条独立成函数，是为了以后接「带引用」「带图片」等新输出形式时，
  * 只改这里，不用碰触发与限流。
  */
+import fs from 'node:fs';
+import { parseOutbound, resolveOutboundMedia } from './vision.js';
 
 /** 微信不渲染 markdown，把标记去掉但保留文字结构。 */
 export function stripMarkdown(input) {
@@ -40,7 +42,8 @@ export function splitReply(text, maxChars) {
 export class Responder {
   constructor({ ai, cfg = {}, hook, logger, selfFilter = null }) {
     this.ai = ai;
-    this.cfg = cfg;
+    // 兜底默认值：生产环境的 cfg 来自 loadConfig（已带这些键），这里保证缺省时行为正确。
+    this.cfg = { stripMarkdown: true, maxReplyChars: 900, ...cfg };
     this.hook = hook;
     this.log = logger;
     /** 用来登记「哪些消息是我自己发的」，见 bridge/self-filter.js */
@@ -53,6 +56,10 @@ export class Responder {
     const res = await ai.chat(messages, {
       maxTokens: this.cfg.maxTokens,
       temperature: this.cfg.temperature,
+      // 思考强度：客户端自带优先（按会话单独配的模型带自己的档位），再退回全局配置
+      reasoningEffort: opts.reasoningEffort ?? ai?.reasoningEffort ?? this.cfg.reasoningEffort,
+      reasoningFormat: opts.reasoningFormat ?? ai?.reasoningFormat ?? this.cfg.reasoningFormat,
+      reasoningBudget: opts.reasoningBudget ?? ai?.reasoningBudget ?? this.cfg.reasoningBudget,
     });
     return res.text;
   }
@@ -67,17 +74,49 @@ export class Responder {
   }
 
   /**
-   * 把文本发回微信。
+   * 发一条「长任务提示」（§16.5），如「正在解析文件……」。
    *
-   * 发送的同时把「这条是我自己发的」登记下来：
-   *  · 文本先记一份（回声兜底）
-   *  · 发出后回查库拿到新写入的 local_id，登记进已发清单（精确过滤用）
+   * 与 deliver 的区别：
+   *  · 只发一行短文本，不做拆条、不解析出站图片 / 文件标记；
+   *  · 不写上下文、不记 outbound —— 它是过程提示，不是一次「回答」；
+   *  · 结果正文由调用方随后**另起一条新消息**发送（微信不支持原地替换，见 §16.5）。
+   *
+   * 仍登记 selfFilter（回声兜底），因为它确实是 bot 发出去的一条消息。
+   * @returns {Promise<{ok:boolean, message?:string}>}
+   */
+  async sendNotice(to, text) {
+    const body = String(text ?? '').trim();
+    if (!body) return { ok: false, message: '提示为空' };
+    this.selfFilter?.rememberOutgoing(to, body);
+    const needIds = this.selfFilter?.mode === 'id';
+    const before =
+      needIds && typeof this.hook.maxLocalId === 'function'
+        ? await this.hook.maxLocalId(to).catch(() => 0)
+        : 0;
+    const r = await this.hook.sendText(to, body);
+    if (!r.ok) return { ok: false, message: r.message || '发送失败' };
+    if (needIds && typeof this.hook.captureSentIds === 'function') {
+      const ids = await this.hook.captureSentIds(to, before).catch(() => []);
+      if (ids.length) this.selfFilter.markSent(to, ids);
+    }
+    return { ok: true };
+  }
+
+  /**
+   * 把回复发回微信。
+   *
+   * 出站多模态（§3.1 文→图）：
+   *  · 文本段走 stripMarkdown 纯文本（微信不渲染 ``` 围栏，IR10）；
+   *  · 模型若返回 [[image:...]] 标记，则走原生 sendImage（IR9 / IR12），
+   *    不在文本里塞 markdown 围栏，用户收到的是真正的图片消息。
+   *
+   * 发送文本的同时把「这条是我自己发的」登记下来（回声兜底 + 回查库精确过滤）。
    *
    * @returns {{ok:boolean, count:number, message?:string}}
    */
   async deliver(to, text) {
-    const parts = this.prepare(text);
-    if (!parts.length) return { ok: false, count: 0, message: '回复内容为空' };
+    const { text: body, images, files } = parseOutbound(text);
+    const parts = this.prepare(body);
 
     let sent = 0;
     // 只有「按 id 判定自己发的」模式才需要回查库，sender 模式不做这步（省一次查询）
@@ -98,6 +137,37 @@ export class Responder {
         if (ids.length) this.selfFilter.markSent(to, ids);
       }
     }
+
+    // 出站图片：解析标记 → 本机文件路径（data URI 写临时文件）→ 原生图片消息
+    for (const token of images) {
+      const file = resolveOutboundMedia(token, { tmpDir: this.cfg?.dataDir });
+      if (!file) continue;
+      const r = await this.hook.sendImage(to, file);
+      if (!r.ok) {
+        return { ok: false, count: sent, message: r.message || '发送图片失败' };
+      }
+      sent += 1;
+    }
+
+    // 出站文件（§16.4：write_doc 等工具生成的 docx / xlsx）：以原生文件消息发出。
+    // 标记此前只被 parseOutbound 解析出来、从未发送，生成的文档实际到不了用户手里。
+    for (const token of files) {
+      if (!fs.existsSync(token)) {
+        this.log?.warn?.(`出站文件不存在，已跳过：${token}`);
+        continue;
+      }
+      // hook 不支持 sendFile（部分 DLL 没有该接口）时降级：把路径告诉用户，别让人以为白等
+      const r = typeof this.hook.sendFile === 'function'
+        ? await this.hook.sendFile(to, token)
+        : { ok: false };
+      if (r.ok) { sent += 1; continue; }
+      this.log?.warn?.(`发送文件失败，降级为文本：${r.message || 'hook 不支持 sendFile'}`);
+      const note = `已生成文件：${token}`;
+      const sent2 = await this.hook.sendText(to, note);
+      if (sent2.ok) sent += 1;
+    }
+
+    if (!sent) return { ok: false, count: 0, message: '回复内容为空' };
     return { ok: true, count: sent };
   }
 }

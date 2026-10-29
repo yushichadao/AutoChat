@@ -2,7 +2,7 @@
 
 > 站在五种使用者的角度，把 AutoChat 从头到尾走一遍，记录**每一步会卡在哪**。
 > 每条问题都标了处理结论：已修 / 待办 / 不做（并说明为什么）。
-> 关联文档：[故障模式](FAILURE-MODES.md) · [逻辑与界面缺陷](LOGIC-UI-ISSUES.md) · [术语表](GLOSSARY.md)
+> 关联文档：[故障模式](failure-modes.md) · [逻辑与界面缺陷](logic-ui-issues.md) · [术语表](glossary.md)
 
 ---
 
@@ -38,7 +38,7 @@ AutoChat 是 **Windows 专属的「微信侧本地 AI 助手」**：注入 hook 
 | `autochat <命令>` | **命令行的完整能力** | 会脚本的人 | 与图形化配置器**平级**，能做的事一样多 |
 | 图形化配置器 | **浏览器的完整能力** | 不想用命令行的人 | 同上 |
 
-> 收口前的状态是「TUI + CLI + GUI 三套并行」，且 TUI 与 setup 逻辑漂移、GUI 与 CLI 能力不对等 —— 详见 [逻辑与界面缺陷 L11](LOGIC-UI-ISSUES.md)。
+> 收口前的状态是「TUI + CLI + GUI 三套并行」，且 TUI 与 setup 逻辑漂移、GUI 与 CLI 能力不对等 —— 详见 [逻辑与界面缺陷 L11](logic-ui-issues.md)。
 
 ---
 
@@ -128,7 +128,7 @@ AutoChat 是 **Windows 专属的「微信侧本地 AI 助手」**：注入 hook 
 
 | # | 卡点 | 严重度 | 处理 |
 | --- | --- | --- | --- |
-| E1 | 文档与仓库现实矛盾：README 与落地页说「不分发任何第三方二进制」，但仓库里有 12 个 hook DLL | 高 | 已修：表述改实情 + `docs/DLL-SOURCES.md` 逐个列出来源与许可；LICENSE 2.4(c) 同步修正（只改事实性表述，限制条款不动） |
+| E1 | 文档与仓库现实矛盾：README 与落地页说「不分发任何第三方二进制」，但仓库里有 12 个 hook DLL | 高 | 已修：表述改实情 + `docs/dll-sources.md` 逐个列出来源与许可；LICENSE 2.4(c) 同步修正（只改事实性表述，限制条款不动） |
 | E2 | `.gitignore` 写着 `tools/wxhook/`、`tools/wechat-hook/`，但这些文件**早已入库**——ignore 对已跟踪文件无效，反而误导 | 中 | 已修：移除这两条误导性条目（保留 `tools/mingw64/`、`tools/*.py`） |
 | E3 | 版本号引用散落多处 | 低 | 已修：统一 2.0.0，并新增 `autochat version` |
 | E4 | 署名不统一（LICENSE 写 yushichadao，package.json 写 AutoChat contributors） | 中 | 已修：统一为 Yushichadao / yushichadao@qq.com |
@@ -160,7 +160,7 @@ AutoChat 是 **Windows 专属的「微信侧本地 AI 助手」**：注入 hook 
 | 按会话配置 | — | `autochat chats list/add/rm/enable/disable` | 按会话配置卡 |
 | 上下文记忆 | — | `autochat context [id] [--clear]` | 上下文记忆卡 |
 | 读写配置 | — | `autochat config get/set` | 各卡片的输入框 |
-| 安装 / 卸载 | `npm run install` / `npm run uninstall` | `autochat install [...]` / `autochat uninstall [...]` | 安装与卸载卡 |
+| 安装 / 卸载 | `npm run install-service` / `npm run uninstall-service` | `autochat install [...]` / `autochat uninstall [...]` | 安装与卸载卡 |
 | 版本信息 | `npm run version` | `autochat version` | — |
 | 演示链路 | `npm run demo` | `node tools/demo.js` | — |
 

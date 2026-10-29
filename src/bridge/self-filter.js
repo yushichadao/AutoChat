@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /**
- * 「这条消息是不是机器人自己发出去的」—— 两种判定模式。
+ * 「这条消息是不是助手自己发出去的」—— 两种判定模式。
  *
  * 场景 A（默认 sender）：手机上的号和电脑上的号是同一个，
  *   但群里说话的往往是**别人**。这时按 wxid 过滤最省事：
@@ -10,8 +10,8 @@ import path from 'node:path';
  *
  * 场景 B（id）：电脑微信必须扫码登录，所以电脑上的号 == 手机上的号，
  *   群里的对话记录里，**提问的人就是本机账号**。
- *   这时按 wxid 过滤会把用户的提问全丢掉，机器人永远不回话。
- *   只能改成「精确记住机器人自己发过哪几条」：
+ *   这时按 wxid 过滤会把用户的提问全丢掉，助手永远不回话。
+ *   只能改成「精确记住助手自己发过哪几条」：
  *   发送后回查库拿到新写入的 local_id，登记下来，收到时按 id 排除。
  *
  * 两种模式都保留内容回声兜底（发出的文本短时间内原样回来 → 判定为自己发的）。
@@ -60,7 +60,7 @@ export class SelfFilter {
     }
   }
 
-  /** 登记机器人刚发出的消息 id。 */
+  /** 登记助手刚发出的消息 id。 */
   markSent(chatId, ids) {
     const list = (Array.isArray(ids) ? ids : [ids]).map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0);
     if (!list.length) return;
@@ -89,7 +89,7 @@ export class SelfFilter {
   }
 
   /**
-   * 这条消息是不是机器人自己发的？
+   * 这条消息是不是助手自己发的？
    * @param {{chatId:string, id:string, text:string, senderId:string}} msg
    */
   isSelfMessage(msg) {

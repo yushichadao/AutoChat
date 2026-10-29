@@ -7,6 +7,9 @@
  *  - chatName：群名 / 对方昵称（不知道在跟谁聊，模型就只能说套话）
  *  - atUsers：结构化 @ 列表（部分 DLL 推 XML，从 <atuserlist> 里解析）
  */
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { decodeDbContent } from './db-decode.js';
 
 const SENDER_KEYS = ['wxid', 'from', 'fromUser', 'from_user', 'sender', 'senderId', 'sender_wxid', 'talker'];
@@ -102,10 +105,109 @@ export function stripSenderPrefix(text) {
   return m ? m[1] : s;
 }
 
+/** 受支持的附件扩展名（与 ai/tools/office.js 的抽取能力对齐）。 */
+const FILE_EXT = /\.(txt|md|markdown|csv|json|log|yml|yaml|ini|docx|xlsx|pptx|pdf)$/i;
+/** 常见的附件字段名（不同 hook DLL 差别很大）。 */
+const FILE_KEYS = ['file', 'files', 'filePath', 'file_path', 'fileName', 'file_name', 'path', 'attach', 'attachment'];
+
+/**
+ * 尽力而为地识别入站附件。
+ *
+ * 不同 hook 推上来的附件字段名差别很大，没法穷举；这里退一步按「值看起来像
+ * 受支持的文件路径」来挑，只收可信路径、不猜不造，识别不到就是空数组（上层按纯文本处理）。
+ */
+function pickFiles(node) {
+  const out = [];
+  const seen = new Set();
+  const consider = (v, depth = 0) => {
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (!s || s.length > 512) return;
+      if (!FILE_EXT.test(s)) return;
+      if (seen.has(s)) return;
+      seen.add(s);
+      out.push(s);
+    } else if (depth < 4 && v && typeof v === 'object') {
+      // 递归进嵌套对象 / 数组：不同 hook 的附件字段层级不一（file.path / attachments[].path …）
+      const vals = Array.isArray(v) ? v : Object.values(v);
+      for (const val of vals) consider(val, depth + 1);
+    }
+  };
+  for (const k of FILE_KEYS) {
+    const v = node?.[k];
+    if (Array.isArray(v)) v.forEach(consider);
+    else consider(v);
+  }
+  for (const [k, v] of Object.entries(node || {})) {
+    if (FILE_KEYS.includes(k)) continue;
+    consider(v);
+  }
+  return out;
+}
+
+/* ===================== 入站附件：定位本机文件 ===================== */
+/* 微信 4.x 把收到的文件存在 FileStorage/File/<日期>/<文件名>，各版本路径布局不一，
+ * 这里多猜几种，最后有限深度递归兜底。找不到返回 null，由上层在文本里提示“收到文件”，
+ * 而不是直接读字节报错。 */
+
+function exists(p) {
+  try { return p && typeof p === 'string' && fs.existsSync(p); } catch { return false; }
+}
+
+function defaultStorageBase(selfId) {
+  if (!selfId) return '';
+  const base = process.env.USERPROFILE
+    ? path.join(process.env.USERPROFILE, 'Documents')
+    : path.join(os.homedir(), 'Documents');
+  return path.join(base, 'WeChat Files', selfId, 'FileStorage');
+}
+
+function resolveAttachmentPath({ selfId, name, dateStr, base, subdir = 'File' }) {
+  const root = base || defaultStorageBase(selfId);
+  if (!root || !name) return null;
+  const cands = [
+    path.join(root, subdir, dateStr, name),
+    path.join(root, subdir, name),
+    path.join(root, 'MsgAttach', selfId, subdir, dateStr, name),
+    path.join(root, 'MsgAttach', selfId, subdir, name),
+  ];
+  for (const c of cands) if (exists(c)) return c;
+  // 兜底：root 下有限深度递归找同名文件
+  try {
+    const stack = [root];
+    let depth = 0;
+    while (stack.length && depth < 6) {
+      depth += 1;
+      const dir = stack.pop();
+      let entries = [];
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+      for (const e of entries) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) stack.push(full);
+        else if (e.name === name) return full;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+/** 解析微信 appmsg（type=49）XML，提取文件类附件的元信息。 */
+function parseAppmsg(content) {
+  const s = String(content || '');
+  if (!s.includes('<appmsg')) return null;
+  const num = (re) => { const m = re.exec(s); return m ? m[1] : ''; };
+  const appType = Number(num(/<type>(\d+)<\/type>/i)) || 0;
+  const title = num(/<title>([\s\S]*?)<\/title>/i).trim();
+  const fileext = num(/<fileext>([\s\S]*?)<\/fileext>/i).trim();
+  const totallen = Number(num(/<totallen>(\d+)<\/totallen>/i)) || 0;
+  const url = num(/<url>([\s\S]*?)<\/url>/i).trim();
+  return { appType, title, fileext, totallen, url };
+}
+
 /**
  * @returns {{id,chatType,chatId,chatName,senderId,senderName,text,images,files,kind,atUsers,time,raw}|null}
  */
-export function normalizeMessage(raw, { selfId = '', selfMode = 'sender' } = {}) {
+export function normalizeMessage(raw, { selfId = '', selfMode = 'sender', fileStorageBase = '' } = {}) {
   const node = unwrap(raw);
   if (!node) return null;
 
@@ -121,10 +223,12 @@ export function normalizeMessage(raw, { selfId = '', selfMode = 'sender' } = {})
   let kind = TYPE_MAP[numericType] || 'text';
   let content = rawContent === undefined ? '' : typeof rawContent === 'string' ? rawContent : String(rawContent);
   let atUsers = [];
+  let appMeta = null;
   if (/^<msg[\s>]/i.test(content)) {
     kind = 'xml';
     atUsers = extractAtUsers(content);
-    const title = extractXmlTitle(content);
+    appMeta = parseAppmsg(content);
+    const title = appMeta?.title || extractXmlTitle(content);
     if (title) content = title;
   } else if (kind === 'text') {
     content = stripSenderPrefix(content);
@@ -133,11 +237,29 @@ export function normalizeMessage(raw, { selfId = '', selfMode = 'sender' } = {})
   const isGroup = Boolean(roomId) || /@chatroom$/i.test(senderId);
   const chatId = isGroup ? roomId || senderId : senderId;
 
+  const time = Number(pick(node, TIME_KEYS) ?? 0) || Math.floor(Date.now() / 1000);
+  const dateStr = new Date(time * 1000).toISOString().slice(0, 10);
+
   const images = [];
   if (kind === 'image') {
+    // 信任 hook / DLL 推送时显式给的路径；DB 轮询的图片没有可靠文件名，不猜测（避免推不存在的路径）
     const p = pick(node, ['file', 'path', 'image', 'thumb', 'filePath']);
     if (typeof p === 'string' && p) images.push(p);
   }
+
+  const files = [];
+  // 应用消息（文件/链接等）：把本机文件路径带出来，供 office.js 真正读取内容
+  if (appMeta && appMeta.title) {
+    const rp = resolveAttachmentPath({ selfId, name: appMeta.title, dateStr, base: fileStorageBase });
+    if (rp) {
+      files.push(rp);
+    } else {
+      const sizeKb = appMeta.totallen ? `（约 ${Math.max(1, Math.round(appMeta.totallen / 1024))}KB）` : '';
+      const ext = appMeta.fileext ? `.${appMeta.fileext}` : '';
+      content = `${content}${content ? ' ' : ''}[收到文件附件：${appMeta.title}${ext}${sizeKb}]`;
+    }
+  }
+  for (const e of pickFiles(node)) if (!files.includes(e)) files.push(e);
 
   const chatName = String(pick(node, CHAT_NAME_KEYS) ?? '');
 
@@ -150,10 +272,10 @@ export function normalizeMessage(raw, { selfId = '', selfMode = 'sender' } = {})
     senderName: String(pick(node, NAME_KEYS) ?? senderId),
     text: content,
     images,
-    files: [],
+    files,
     kind,
     atUsers,
-    time: Number(pick(node, TIME_KEYS) ?? 0) || Math.floor(Date.now() / 1000),
+    time,
     raw: node,
   };
 }

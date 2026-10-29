@@ -1,0 +1,64 @@
+{
+  "name": "dsh-autochat",
+  "version": "2.0.0",
+  "description": "在 DeepSeek Harness 里管理 Windows 微信侧 AI 助手 AutoChat：根本性配置七步体检、启停服务、暂停回复、按会话配置、匹配 hook DLL。配置仍由 AutoChat 本体落盘，插件只做外壳与拦截。",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Yushichadao <yushichadao@qq.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yushichadao/AutoChat.git",
+    "directory": "plugin/dsh-autochat"
+  },
+  "homepage": "https://github.com/yushichadao/AutoChat",
+  "keywords": [
+    "dsh-plugin",
+    "wechat",
+    "wechat-hook",
+    "ai-assistant",
+    "windows"
+  ],
+  "type": "module",
+  "main": "index.js",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./tools": "./lib/tools.js",
+    "./skill": "./lib/skill.js",
+    "./mcp": "./lib/mcp.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "index.js",
+    "LICENSE",
+    "lib/",
+    "assets/",
+    "locale/",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "dsh": ">=0.2.0 <0.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "~3.18.5"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-tools": ">=0.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-tools": ">=0.2.0",
+    "@deepseek-ai/schemastery": "~3.18.5"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

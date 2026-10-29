@@ -22,7 +22,9 @@ function fakeHook({ batch = [], rows = [], senders = [], custom = [] } = {}) {
     async queryDb(sql) {
       queries += 1;
       const s = String(sql || '');
-      if (/MAX\s*\(\s*local_id\s*\)/i.test(s)) return { status: 0, data: [{ msgid: 0 }] };
+      // 水位查询要返回真实值：返回 0 会被当成「表还不存在」，
+      // 那一批消息会被首次接管逻辑挡掉（真实行为，但这里要测的是正常投递）
+      if (/MAX\s*\(\s*local_id\s*\)/i.test(s)) return { status: 0, data: [{ msgid: 4 }] };
       if (/Name2Id/i.test(s)) return { status: 0, data: senders };
       if (/^\s*SELECT\s+local_id\s+FROM/i.test(s)) return { status: 0, data: batch };
       if (/AS\s+msgid/i.test(s)) return { status: 0, data: rows };

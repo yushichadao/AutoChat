@@ -1,4 +1,7 @@
 import process from 'node:process';
+import path from 'node:path';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { ROOT } from '../core/paths.js';
 import { loadConfig } from '../core/config.js';
 import { detectWeChat } from '../bridge/process.js';
@@ -67,14 +70,43 @@ export async function evaluateSteps({ rootDir = ROOT } = {}) {
       : step('lock', 'warn', '微信还能自动更新 —— 一升级 hook DLL 就失效', '锁定微信版本', { kind: 'lock', label: '锁定版本' })
   );
 
-  // ④ 匹配 hook DLL
+  // ④ 匹配 hook DLL：校验「已配置 + 已部署到微信目录 + 版本对得上」
   const dll = await detectBuiltinDll(rootDir);
-  if (cfg.wechat.dllPath) {
-    steps.push(step('dll', 'ok', '已配置 ' + cfg.wechat.dllPath, ''));
-  } else if (dll.path) {
-    steps.push(step('dll', 'warn', '已匹配到内置 DLL（微信 ' + dll.version + '）', '写入 WX_DLL_PATH', { kind: 'autodll', label: '自动检测 DLL' }));
+  const v = (wechat && wechat.version) || (dll && dll.version) || '';
+  const installDir = (wechat && wechat.dir) || cfg.wechat.installDir;
+  const expected = dll && dll.path;
+
+  // 微信目录里正在用的 version.dll 是不是该版本该用的那份
+  let depState = 'none'; // none（未部署） | wrong（版本不对） | right（对得上） | unknown（无法比对）
+  let depSize = 0;
+  if (installDir) {
+    const t = path.join(installDir, 'version.dll');
+    if (fs.existsSync(t)) {
+      try {
+        depSize = fs.statSync(t).size;
+        const h = (f) => (f && fs.existsSync(f))
+          ? crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex')
+          : '';
+        depState = expected ? (h(t) === h(expected) ? 'right' : 'wrong') : 'wrong';
+      } catch {
+        depState = 'unknown';
+      }
+    }
+  }
+
+  if (!cfg.wechat.dllPath && expected) {
+    steps.push(step('dll', 'warn', '已匹配到内置 DLL（微信 ' + dll.version + '）', '点「自动检测 DLL」写入 WX_DLL_PATH', { kind: 'autodll', label: '自动检测 DLL' }));
+  } else if (cfg.wechat.dllPath) {
+    if (depState === 'wrong') {
+      steps.push(step('dll', 'bad', '微信目录里的 DLL 与微信 ' + v + ' 不匹配（' + (depSize / 1048576).toFixed(1) + ' MB）', '点「改用匹配的 DLL」会自动替换并部署', { kind: 'fix-dll', label: '改用匹配的 DLL' }));
+    } else if (depState === 'right') {
+      steps.push(step('dll', 'ok', '已部署匹配微信 ' + v + ' 的 DLL', '启动助手后会注入 / 加载'));
+    } else {
+      // none / unknown：还没写进微信目录，或无法比对
+      steps.push(step('dll', 'warn', '已配置 ' + cfg.wechat.dllPath, '还没写进微信目录，点「写入微信目录」', { kind: 'deploy-dll', label: '写入微信目录' }));
+    }
   } else {
-    steps.push(step('dll', 'bad', '没找到匹配内置方案的 DLL', '准备一个与微信版本匹配的 hook DLL'));
+    steps.push(step('dll', 'bad', '没找到匹配微信版本的 DLL', '准备一个与微信版本匹配的 hook DLL 后填到 WX_DLL_PATH'));
   }
 
   // ⑤ 接一个模型

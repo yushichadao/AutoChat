@@ -13,16 +13,30 @@ import { chatTable, candidateDbs } from './poll-sql.js';
  *   POST /QueryDB/execute {optDbName, SQL}
  * 路径都可以在配置里覆盖，换一个 DLL 只要改 endpoint。
  */
+/** 与 src/core/config.js 的 WX_EP_* 默认值保持一致，供没传 endpoints 的调用方兜底。 */
+export const DEFAULT_ENDPOINTS = {
+  sendText: '/SendTextMsg',
+  sendImage: '/SendImgMsg',
+  sendFile: '/SendFileMsg',
+  sendXml: '/ForwardXMLMsg',
+  selfProfile: '/GetSelfProfile',
+  status: '/QueryDB/status',
+  queryDb: '/QueryDB/execute',
+};
 export class HookClient {
   constructor({ host, port, endpoints, logger, dialect, dbName = 'message_0.db', dbQueryTimeoutMs = 15000 } = {}) {
     this.host = host;
     this.port = port;
-    this.ep = endpoints;
+    // 忘传 endpoints 时不能留 undefined：this.ep.status 会抛 TypeError，
+    // 被 ping() 吞成「连不上」，最后上层只能报「未能自动修复」。
+    this.ep = { ...DEFAULT_ENDPOINTS, ...(endpoints || {}) };
     this.log = logger;
     this.dialect = dialect || null;
     this.dbName = dbName;
     this.dbQueryTimeoutMs = dbQueryTimeoutMs;
     this.seq = 0;
+    /** 已知会话列表（chatroom / 好友 wxid），由上层（receiver）注入，用于快速精准反推本机 wxid */
+    this.chatIds = [];
   }
 
   request(method, urlPath, body, timeoutMs = 8000) {
@@ -76,14 +90,30 @@ export class HookClient {
    * 不同 DLL 返回的字段名不一致：wxid / username / account / user_name / wxid_ 都接受，
    * 取不到就返回 null，由上层走本地库兜底或提示手工配置。
    */
+  /**
+   * 读本机微信资料（昵称 + wxid）。
+   * 不同 DLL 返回的字段名不一致：wxid / username / account / user_name / wxid_ 都接受。
+   * 兜底链（用于 /GetSelfProfile 返回空、且旧版 MicroMsg.db 不存在的新版微信，如 version-ac）：
+   *   1) hook 直读；2) 本地库反推 wxid（Message / MicroMsg.db / 消息库）；3) contact.db 反查昵称。
+   * 这样无论换哪个号、哪个 DLL，都能自动识别本机身份，无需手工配置 WX_SELF_ID / WX_SELF_NAME。
+   */
   async selfProfile() {
     const r = await this.request('POST', this.ep.selfProfile, {});
     const j = r.json;
-    if (!j || typeof j !== 'object') return null;
-    const wxid = String(j.wxid ?? j.username ?? j.account ?? j.user_name ?? j.wxid_ ?? '').trim();
-    if (!wxid) return null;
-    const nickname = String(j.nickname ?? j.name ?? j.nick ?? '').trim();
-    return { wxid, nickname, raw: j };
+    let wxid = j && typeof j === 'object'
+      ? String(j.wxid ?? j.username ?? j.account ?? j.user_name ?? j.wxid_ ?? '').trim()
+      : '';
+    let nickname = j && typeof j === 'object'
+      ? String(j.nickname ?? j.name ?? j.nick ?? '').trim()
+      : '';
+    if (!wxid) {
+      try { wxid = await this.selfAccount(); } catch { /* 走下面的兜底 */ }
+    }
+    if (wxid && !nickname) {
+      try { nickname = await this.selfNicknameFromContact(wxid); } catch { /* 留空 */ }
+    }
+    if (!wxid && !nickname) return null;
+    return { wxid, nickname, raw: j || {} };
   }
 
   /**
@@ -102,7 +132,7 @@ export class HookClient {
    * 字段名同样兼容 wxid / StrAccount / username / account / value。
    * 拿不到就返回空串，由上层提示用户手工配置 WX_SELF_ID。
    */
-  async selfAccount() {
+  async selfAccount(timeoutMs = 8000) {
     const tries = [
       { db: 'Message', sql: 'SELECT StrAccount AS wxid FROM Message LIMIT 1' },
       { db: 'MicroMsg.db', sql: 'SELECT value AS wxid FROM userinfo WHERE id=1' },
@@ -112,7 +142,7 @@ export class HookClient {
       String(row?.wxid || row?.StrAccount || row?.username || row?.account || row?.value || '').trim();
     for (const { db, sql } of tries) {
       try {
-        const r = await this.request('POST', this.ep.queryDb, { optDbName: db, SQL: sql }, 8000);
+        const r = await this.request('POST', this.ep.queryDb, { optDbName: db, SQL: sql }, timeoutMs);
         const rows = Array.isArray(r?.json?.data) ? r.json.data : Array.isArray(r?.json) ? r.json : [];
         const wxid = pick(rows?.[0]);
         if (wxid) return wxid;
@@ -120,7 +150,158 @@ export class HookClient {
         /* 这个库/SQL 打不开就换下一个 */
       }
     }
+    // 新版本微信（如 version-ac）：/GetSelfProfile 失效且没 MicroMsg.db，
+    // 改从消息库反推本机 wxid（status=2 的消息是“本机发出”，其 real_sender_id 即本机账号）。
+    try {
+      const wxid = await this.detectSelfFromMessages(timeoutMs);
+      if (wxid) return wxid;
+    } catch {
+      /* 忽略，返回空交给上层 */
+    }
     return '';
+  }
+
+  /**
+   * 从消息库反推本机 wxid（兜底方案，用于 /GetSelfProfile 失效、且无 MicroMsg.db 的新版微信）。
+   * 原理：
+   *   - 每条消息的 real_sender_id == Name2Id.rowid（发送者在 Name2Id 里的行号）
+   *   - status=2 的消息是「本机发出」的，其 real_sender_id 即本机账号在 Name2Id 的 rowid
+   *   - 经 Name2Id 反查 user_name 即本机 wxid
+   * 优先用注入的已知会话（this.chatIds）精准查询；否则扫描 message_0..3.db 的前若干张 Msg_* 表，命中即停。
+   * @returns {Promise<string>}
+   */
+  async detectSelfFromMessages(timeoutMs = 8000) {
+    const targets = this.chatIds && this.chatIds.length
+      ? this.chatIds.map((c) => ({ db: this.dbName, t: chatTable(String(c)) }))
+      : await this._scanMsgTables(timeoutMs);
+    for (const { db, t } of targets) {
+      try {
+        const r = await this.request(
+          'POST',
+          this.ep.queryDb,
+          { optDbName: db, SQL: `SELECT real_sender_id AS rid FROM ${t} WHERE status=2 ORDER BY local_id DESC LIMIT 1` },
+          timeoutMs
+        );
+        const rid = r?.json?.data?.[0]?.rid;
+        if (rid == null || rid === '0' || rid === 0) continue;
+        const r2 = await this.request(
+          'POST',
+          this.ep.queryDb,
+          { optDbName: db, SQL: `SELECT user_name FROM Name2Id WHERE rowid=${Number(rid)} LIMIT 1` },
+          timeoutMs
+        );
+        const wxid = String(r2?.json?.data?.[0]?.user_name || '').trim();
+        // 排除聊天室/异常值，确保拿到的是本机个人 wxid
+        if (wxid && !wxid.includes('@')) return wxid;
+      } catch {
+        /* 下一张表 */
+      }
+    }
+    return '';
+  }
+
+  /** 扫描 message_0..3.db 的 Msg_* 表名，供 detectSelfFromMessages 在无已知会话时回退使用。 */
+  async _scanMsgTables(timeoutMs = 8000) {
+    const out = [];
+    for (const db of candidateDbs(this.dbName, 4)) {
+      try {
+        const r = await this.request(
+          'POST',
+          this.ep.queryDb,
+          { optDbName: db, SQL: "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'Msg_%' LIMIT 40" },
+          timeoutMs
+        );
+        for (const x of Array.isArray(r?.json?.data) ? r.json.data : []) {
+          if (x?.name) out.push({ db, t: x.name });
+        }
+      } catch {
+        /* 下个库 */
+      }
+    }
+    return out;
+  }
+
+  /**
+   * 已知本机 wxid 时，从 contact.db 反查昵称（新版微信的联系人昵称都在这里）。
+   * @returns {Promise<string>}
+   */
+  async selfNicknameFromContact(wxid, timeoutMs = 8000) {
+    try {
+      const safe = String(wxid).replace(/'/g, "''");
+      const r = await this.request(
+        'POST',
+        this.ep.queryDb,
+        { optDbName: 'contact.db', SQL: `SELECT nick_name FROM contact WHERE username='${safe}' LIMIT 1` },
+        timeoutMs
+      );
+      const n = r?.json?.data?.[0]?.nick_name;
+      return n ? String(n).trim() : '';
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * 本地消息库是否可解密读取。
+   * 微信数据库是 SQLCipher 加密的，只有已登录（拿到密钥）才能打开；
+   * 未登录时查询会失败。所以「能读出来」本身就证明已登录，比 IsLogin 字段更可靠。
+   * 用 sqlite_master 探表，而非 SELECT 1（后者不碰任何表，未登录也可能成功）。
+   * @returns {Promise<boolean>}
+   */
+  async dbReadable(timeoutMs = 3000) {
+    const dbs = candidateDbs('message_0.db').concat(['MicroMsg.db', 'contact.db']);
+    for (const db of dbs) {
+      try {
+        const r = await this.request(
+          'POST',
+          this.ep.queryDb,
+          { optDbName: db, SQL: "SELECT name FROM sqlite_master WHERE type='table' LIMIT 1" },
+          timeoutMs
+        );
+        const rows = Array.isArray(r?.json?.data) ? r.json.data : Array.isArray(r?.json) ? r.json : [];
+        if (rows.length) return true;
+      } catch {
+        /* 这个库打不开就试下一个 */
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 判断微信是否真的已登录，规避某些 hook DLL 在个别微信版本上把 IsLogin 误报成 0 的假阴性。
+   * 取证优先级（任一命中即判已登录）：
+   *   1) IsLogin===1
+   *   2) /GetSelfProfile 能拿到本机 wxid
+   *   3) 本地库里能读到本机账号（selfAccount，兼容各版本库名/表名）
+   *   4) 本地消息库可解密读取（dbReadable）—— 未登录时库是加密的读不出
+   * 都拿不到 → IsLogin===0 判未登录，缺失判未知(null)
+   * @returns {Promise<boolean|null>} true 已登录 / false 未登录 / null 未知（hook 不可达或拿不准）
+   */
+  async confirmLogin(timeoutMs = 3000) {
+    const st = await this.ping().catch(() => ({ ok: false }));
+    if (!st.ok) return null;
+    const d = st.data || {};
+    const login = d.IsLogin ?? d.isLogin ?? d.is_login ?? d.login;
+    if (login === 1) return true;
+    // IsLogin 在 4.1.10.27 等版本上被 DLL 误报成 0，用更可靠的证据反证：
+    try {
+      const prof = await this.selfProfile();
+      if (prof && prof.wxid) return true;
+    } catch {
+      /* 换下一个证据 */
+    }
+    try {
+      const wxid = await this.selfAccount(timeoutMs);
+      if (wxid) return true;
+    } catch {
+      /* 换下一个证据 */
+    }
+    try {
+      if (await this.dbReadable(timeoutMs)) return true;
+    } catch {
+      /* 放弃，按 IsLogin 结论 */
+    }
+    return login === 0 ? false : null;
   }
 
   /**
@@ -155,8 +336,12 @@ export class HookClient {
     return this.sendFileLike('image', IMAGE_PATHS, this.ep.sendImage, toWxid, { wxidorgid: toWxid, path: filePath });
   }
 
+  /**
+   * 发文件（write_doc 等工具生成的 docx / xlsx，§16.4）。
+   * DLL 侧未必有该端点：探测不到会返回 ok:false，由 responder 降级为文本，不会卡住回复。
+   */
   async sendFile(toWxid, filePath) {
-    return this.sendFileLike('file', FILE_PATHS, this.ep.sendFile, toWxid, { wxidorgid: toWxid, path: filePath });
+    return this.sendFileLike('file', FILE_PATHS, this.ep?.sendFile, toWxid, { wxidorgid: toWxid, path: filePath });
   }
 
   async sendFileLike(kind, candidates, configured, toWxid, body) {
@@ -202,7 +387,7 @@ export class HookClient {
   }
 
   /**
-   * 发完消息之后，回查库里多出来的 local_id —— 这些就是「机器人自己发的」。
+   * 发完消息之后，回查库里多出来的 local_id —— 这些就是「助手自己发的」。
    * 微信写库有延迟，所以轮询几秒；查不到就返回空（靠内容回声兜底）。
    */
   async captureSentIds(chatId, before, { tries = 6, gapMs = 400 } = {}) {

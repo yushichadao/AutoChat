@@ -1,0 +1,6 @@
+{
+  "plugin": {
+    "name": "AutoChat",
+    "description": "Console for the Windows WeChat-side AI assistant: preflight, service control, reply gate, per-chat config, hook DLL matching."
+  }
+}

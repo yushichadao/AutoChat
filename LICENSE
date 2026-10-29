@@ -48,10 +48,10 @@ The foregoing rights take effect on the date you first obtain the Software and a
 2.4 再分发与衍生 / Redistribution and Derivatives
     (a) **原版源码**：允许为个人非商业目的转发、镜像本软件原版（未修改），但不得冒名、不得修改、须保留本许可证与版权声明。
     (b) **修改版 / 衍生版**：任何修改版或衍生作品的**公开发布**（含在 GitHub 等平台公开 fork、发布 release）**均须事先取得作者书面授权**。获得授权后，必须：(i) 在显眼位置标注为"基于 AutoChat 的独立修改版"；(ii) 遵守 2.1（不得冒名）；(iii) 随分发物附上本许可证全文且不得修改。
-    (c) 仓库随附部分 hook DLL（含作者自制与第三方来源，来源与适配版本见 docs/DLL-SOURCES.md）。第三方二进制版权归原作者，适用其各自许可；本项目不担保其安全性与合法性。npm 发布包不含这些二进制。
+    (c) 仓库随附部分 hook DLL（含作者自制与第三方来源，来源与适配版本见 docs/dll-sources.md）。第三方二进制版权归原作者，适用其各自许可；本项目不担保其安全性与合法性。npm 发布包不含这些二进制。
     2.4 (a) **Original source**: you may forward or mirror the unmodified original Software for personal non-commercial purposes, provided you do not misrepresent authorship, do not modify it, and retain this License and copyright notices.
     (b) **Modified / derivative versions**: any **public release** of a modified or derivative version (including public forks or releases on platforms such as GitHub) **requires the author's prior written authorization**. Upon authorization you must: (i) clearly label it as an "independent modification based on AutoChat"; (ii) comply with Section 2.1 (no misrepresentation); (iii) include this License in full and unmodified.
-    (c) This repository ships some hook DLLs (author-made and third-party; see docs/DLL-SOURCES.md for sources and supported versions). Third-party binaries remain under their original copyright and licenses; the project makes no warranty about their safety or legality. The npm package does not contain them.
+    (c) This repository ships some hook DLLs (author-made and third-party; see docs/dll-sources.md for sources and supported versions). Third-party binaries remain under their original copyright and licenses; the project makes no warranty about their safety or legality. The npm package does not contain them.
 
 2.5 名称与标识（软声明）/ Name and Mark (Soft Claim)
     "AutoChat" 名称及其标识为作者所有。衍生作品**不得使用"AutoChat"名称或相似标识**，以免造成来源混淆，但可如实说明"基于 AutoChat 开发"。本声明不构成商标注册，亦不赋予任何商标权利。

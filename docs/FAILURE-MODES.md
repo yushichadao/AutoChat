@@ -102,7 +102,7 @@ autochat logs       # 看最后 200 行日志
 | 根因 C | 云端 401（密钥错）/ 429（额度或频率）/ 超时 |
 | 检测 | `autochat model test`；`autochat model service status` 看本地服务在不在；日志里「跳过」计数异常 |
 | 已做的自愈 | 新增 `autochat model service start/stop`，可一键拉起本地模型服务并等就绪；体检新增「模型服务」检查 |
-| 剩余风险 | 限流的静默丢弃仍在排查中（见 `docs/LOGIC-UI-ISSUES.md` L2） |
+| 剩余风险 | 限流的静默丢弃仍在排查中（见 `docs/logic-ui-issues.md` L2） |
 ## F8 端口冲突
 
 | 项 | 内容 |

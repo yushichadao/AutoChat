@@ -1,6 +1,6 @@
 # 上手指南
 
-> 详细解释见 [README](../README.md)，排查问题见 [故障模式](FAILURE-MODES.md)。
+> 详细解释见 [README](../README.md)，排查问题见 [故障模式](failure-modes.md)。
 
 AutoChat 有两条上手路线：
 
@@ -51,8 +51,8 @@ cd AutoChat
 npm ci      # 零运行时依赖，这一步基本是空操作
 ```
 
-> 不想用命令行：直接下载仓库 zip 解压也行。
-> 但 **hook DLL 只随 git 仓库提供**，zip 里同样有（都是仓库内容）。
+> 不想用命令行：直接去 GitHub Releases 下载 `AutoChat-win-x64.zip` 解压也行（**发布包已内含维护者自制、专为 AutoChat 适配的 hook DLL，解压即用，无需另外下载或寻找 DLL**）。
+> 注意：纯 `git clone` 的仓库里**不含** hook 二进制（二进制不入库），请直接用发布包；`git clone` 方案仅适合要改代码的开发者。
 
 ## 2. 体检（先看缺什么）
 
@@ -104,8 +104,8 @@ npm run doctor    # 还有哪些阻断项
 | 暂停 / 恢复自动回复 | `npm run pause` / `npm run resume` |
 | 停止服务 | `npm run stop` |
 | 启动本地模型服务（Ollama） | `npm run model-service -- start` |
-| 开机自启 | `npm run install -- --service` |
-| 卸载还原 | `npm run uninstall` |
+| 开机自启 | `npm run install-service -- --service` |
+| 卸载还原 | `npm run uninstall-service` |
 
 ## 7. 换机器时会遇到的几件事
 
@@ -121,10 +121,10 @@ npm run doctor    # 还有哪些阻断项
 ## 8. 卸载
 
 ```bash
-npm run uninstall            # 停服务、去自启、删快捷方式、还原 version.dll、解除微信更新阻断
-npm run uninstall -- --purge # 连 .env 与 data/ 一起清掉
+npm run uninstall-service            # 停服务、去自启、删快捷方式、还原 version.dll、解除微信更新阻断
+npm run uninstall-service -- --purge # 连 .env 与 data/ 一起清掉
 ```
 
 不会删你的微信聊天记录。
 
-> 相关：[术语表](GLOSSARY.md) · [DLL 来源](DLL-SOURCES.md) · [故障模式](FAILURE-MODES.md)
+> 相关：[术语表](glossary.md) · [DLL 来源](dll-sources.md) · [故障模式](failure-modes.md)

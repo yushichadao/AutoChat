@@ -55,6 +55,10 @@ try {
   CopyRel 'src'
   CopyRel 'test'
   CopyRel 'docs'
+  # 内部测试方案（test-plan.md）为对内文档，不随发布包对外发布
+  $ip = Join-Path $stage 'docs/test-plan.md'
+  if (Test-Path $ip) { Remove-Item $ip -Force }
+
 
   # tools 只取白名单（顶层 *.js / *.bat / README.md），其余（第三方源码、*.py）不进包
   $toolsSrc = Join-Path $repo 'tools'
@@ -67,6 +71,23 @@ try {
   }
 
   # 顶层文件
+  # 维护者自研 hook DLL（组合包需含自研 DLL；第三方 DLL 不随包分发，由使用者另行获取）
+  $selfDlls = @(
+    'tools/wxhook/version-ac-4.1.10.27.dll'
+  )
+  foreach ($rel in $selfDlls) {
+    $src = Join-Path $repo $rel
+    if (Test-Path $src) {
+      $dst = Join-Path $stage $rel
+      $dstDir = Split-Path $dst -Parent
+      if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Force -Path $dstDir | Out-Null }
+      Copy-Item $src $dst -Force
+      Write-Host ('已打入自研 DLL：' + $rel)
+    } else {
+      Write-Host ('[warn] 未找到自研 DLL，跳过：' + $rel + '（注入 hook 将不可用，请放入 tools/wxhook 后重打）')
+    }
+  }
+
   foreach ($f in @('package.json', 'package-lock.json', 'README.md', 'CHANGELOG.md', 'LEGAL.md', 'LICENSE', 'SECURITY.md', 'CONTRIBUTING.md', '.env.example', 'config.example.json')) {
     $src = Join-Path $repo $f
     if (Test-Path $src) { Copy-Item $src (Join-Path $stage $f) -Force }
@@ -93,12 +114,35 @@ if not exist src\cli\index.js (
 )
 echo 正在启动 AutoChat 配置器（浏览器会自动打开）……
 node.exe src/cli/index.js gui
-'@ | Set-Content -Encoding ascii (Join-Path $stage 'AutoChat.bat')
+'@ | Set-Content -Encoding utf8 (Join-Path $stage 'AutoChat.bat')
 
   @'
 Set ws = CreateObject("WScript.Shell")
 ws.Run "node.exe src/cli/index.js gui", 0, false
 '@ | Set-Content -Encoding ascii (Join-Path $stage 'AutoChat-后台.vbs')
+  # 命令行（CLI）入口：双击打开交互终端；或 AutoChat-CLI.bat <子命令> 直接执行
+  @'
+@echo off
+chcp 65001 >nul
+cd /d "%~dp0"
+if not exist node.exe (
+  echo [错误] 当前文件夹里找不到 node.exe。
+  echo 请把整个 AutoChat 文件夹一起解压/移动，不要只保留这个文件。
+  pause
+  exit /b 1
+)
+if "%~1"=="" (
+  echo AutoChat 命令行（CLI）已就绪。示例：
+  echo   node.exe src/cli/index.js status
+  echo   node.exe src/cli/index.js config
+  echo   node.exe src/cli/index.js start
+  echo 直接输入上面的命令即可（退出打 exit）。
+  cmd /k
+) else (
+  node.exe src/cli/index.js %*
+)
+'@ | Set-Content -Encoding utf8 (Join-Path $stage 'AutoChat-CLI.bat')
+
 
   @'
 AutoChat 便携版 · 使用说明（小白版）
@@ -121,6 +165,12 @@ AutoChat 便携版 · 使用说明（小白版）
 
 4. 想停：配置器里点“暂停自动回复”；彻底退出就关掉那个黑色窗口
    （或退出 AutoChat-后台.vbs 启动的 node 进程）。
+
+命令行（CLI）入口
+--------------
+- 想用命令行：双击 “AutoChat-CLI.bat” 会打开一个已定位到本文件夹的终端，
+  直接输入 `node.exe src/cli/index.js status` / `config` / `start` 等（退出打 exit）。
+  也可以 “AutoChat-CLI.bat status” 这样带参数直接运行。
 
 常见问题
 --------

@@ -8,6 +8,7 @@
 
 import { normalizeBase } from './client.js';
 import { LOCAL_PORTS } from './providers.js';
+import { buildReasoningParams, unsupportedReasoning } from '../core/reasoning.js';
 
 /** 统一的错误翻译：技术错误 → 人话 + 下一步怎么办。 */
 export function explainError(err, ctx = {}) {
@@ -27,6 +28,17 @@ export function explainError(err, ctx = {}) {
           detail: '这个地址拒绝了连接。检查一下地址是不是抄错了、有没有少写 /v1。',
           fix: 'check-url',
         };
+  }
+  // undici / 浏览器统一抛 "fetch failed" / "Failed to fetch"，不带 errno，需要单独翻译
+  if (/fetch failed|failed to fetch|network ?error|network ?request ?failed/i.test(raw)) {
+    return isLocal
+      ? {
+          title: '连不上：模型服务还没启动',
+          detail:
+            '本机这个地址没人应答。先在「模型服务」卡点「启动模型服务」（或命令行 ollama serve），再回来测试。',
+          fix: 'start-service',
+        }
+      : { title: '连不上这个地址', detail: '网络请求失败：检查地址是否拼错、网络是否通畅。', fix: 'check-url' };
   }
   if (/ENOTFOUND|EAI_AGAIN/i.test(raw)) {
     return { title: '找不到这个网址', detail: '域名解析不了，多半是地址拼错了，或者网络不通。', fix: 'check-url' };
@@ -140,29 +152,58 @@ export async function listModels({ baseUrl, apiKey = '', timeoutMs = 8000 } = {}
 /**
  * 试聊一句：真发一次最小请求，确认「地址 + 密钥 + 模型名」三件套都对。
  * 用最省 token 的提示词，返回里带上模型原话，方便用户确认「它真的在回答我」。
+ *
+ * 思考强度会一起带上（和正式回复用的是同一套参数），
+ * 这样「测试通过」才代表真的能跑；服务端不认这套参数时会自动去掉重试一次。
  */
-export async function testChat({ baseUrl, apiKey = '', model, timeoutMs = 20000 } = {}) {
+export async function testChat({
+  baseUrl,
+  apiKey = '',
+  model,
+  timeoutMs = 20000,
+  reasoningEffort,
+  reasoningFormat,
+  reasoningBudget,
+} = {}) {
   const base = normalizeBase(baseUrl);
   const controller = new AbortController();
   const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null; // 0 = 不限时
   const started = Date.now();
+  const body = {
+    model: model || '',
+    messages: [{ role: 'user', content: '你好，请回一句「测试成功」就行。' }],
+    max_tokens: 32,
+    temperature: 0,
+    stream: false,
+  };
+  const reasoning = buildReasoningParams({
+    effort: reasoningEffort,
+    format: reasoningFormat,
+    budget: reasoningBudget,
+    model: body.model,
+    baseUrl: base,
+  });
+  const reasoningKeys = Object.keys(reasoning);
+  if (reasoningKeys.length) Object.assign(body, reasoning);
   try {
-    const res = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        model: model || '',
-        messages: [{ role: 'user', content: '你好，请回一句「测试成功」就行。' }],
-        max_tokens: 32,
-        temperature: 0,
-        stream: false,
-      }),
-      signal: controller.signal,
-    });
-    const text = await res.text();
+    const send = async () =>
+      fetch(`${base}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    let res = await send();
+    let text = await res.text();
+    // 服务端不认思考参数 → 去掉再试一次（换个模型很常见）
+    if (!res.ok && reasoningKeys.length && (res.status === 400 || res.status === 422) && unsupportedReasoning(text)) {
+      for (const k of reasoningKeys) delete body[k];
+      res = await send();
+      text = await res.text();
+    }
     const ms = Date.now() - started;
     if (!res.ok) {
       const err = new Error(`HTTP ${res.status} ${text.slice(0, 200)}`);

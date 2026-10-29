@@ -101,23 +101,32 @@ export class TriggerPolicy {
     const enabled = overrides.enabled !== undefined ? overrides.enabled : this.cfg.enabled;
     if (!enabled) return { ok: false, reason: 'disabled' };
     if (!msg) return { ok: false, reason: 'empty' };
-    if (msg.kind !== 'text') return { ok: false, reason: 'not-text' };
-    if (!String(msg.text || '').trim()) return { ok: false, reason: 'blank' };
+    // 多模态（IR11）：带图的消息放行（空文本带图也算一条有效输入），非文本且没图才拒。
+    const hasImages = Array.isArray(msg.images) && msg.images.length > 0;
+    const hasFiles = Array.isArray(msg.files) && msg.files.length > 0;
+    // 入站附件（§16.6）：带文件的消息放行（空文本带文件也算有效输入），非文本且无图无附件才拒。
+    if (msg.kind !== 'text' && !hasImages && !hasFiles) return { ok: false, reason: 'not-text' };
+    const text = String(msg.text || '').trim();
+    if (!text && !hasImages && !hasFiles) return { ok: false, reason: 'blank' };
     if (!this.allowed(msg.chatId)) return { ok: false, reason: 'not-allowed' };
 
     const reject = this.rejected(msg);
     if (reject) return { ok: false, reason: `rejected:${reject}` };
 
+    // 带图的消息视为「明确想让 AI 看图」，除非该会话群策略是 never，否则直接触发。
     if (msg.chatType === 'private') {
       if (this.cfg.privateRequirePrefix && !overrides.triggerPrefix && !this.cfg.triggerPrefix) {
         return { ok: false, reason: 'private-require-prefix' };
       }
-      if (this.cfg.privateRequirePrefix && !this.isAddressed(msg, selfWxid, overrides)) {
+      if (this.cfg.privateRequirePrefix && !hasImages && !this.isAddressed(msg, selfWxid, overrides)) {
         return { ok: false, reason: 'private-not-addressed' };
       }
       return { ok: true, userText: this.stripPrefix(msg, overrides) };
     }
 
+    const groupReply = overrides.groupReply || this.cfg.groupReply;
+    if (groupReply === 'never') return { ok: false, reason: 'group-never' };
+    if (hasImages) return { ok: true, userText: this.stripPrefix(msg, overrides) };
     if (!this.isAddressed(msg, selfWxid, overrides)) return { ok: false, reason: 'not-addressed' };
     return { ok: true, userText: this.stripPrefix(msg, overrides) };
   }

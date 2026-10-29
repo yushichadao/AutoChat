@@ -1,6 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { isOurServicePid } from '../core/win.js';
 
 const DEFAULT_WECHAT_PATHS = [
   'C:\\Program Files\\Tencent\\Weixin\\Weixin.exe',
@@ -91,14 +92,19 @@ export async function listWeChatProcesses(processName = 'Weixin.exe') {
     .map((p) => ({ pid: Number(p.ProcessId), exe: p.ExecutablePath }));
 }
 
-/** 判断某个 pid 的进程是否还活着（用于单实例保护）。 */
+/**
+ * 判断某个 pid 的进程是否还活着，且确实是「本服务」进程（用于单实例保护）。
+ * 仅查存活会中招：陈旧 pid 被 Windows 复用成无关进程时，会让新实例误以为已有实例而退出（GAP6）。
+ */
 export async function isProcessAlive(pid) {
   const n = Number(pid);
   if (!Number.isFinite(n) || n <= 0) return false;
   const { out } = await runPowerShell(
     `if (Get-Process -Id ${n} -ErrorAction SilentlyContinue) { Write-Output 1 } else { Write-Output 0 }`
   );
-  return out.trim() === '1';
+  if (out.trim() !== '1') return false;
+  // 进一步校验进程归属，避免陈旧 pid 误判
+  return isOurServicePid(n);
 }
 
 /** 判断微信进程是否已加载指定 DLL（按文件名匹配），用于识别注入是否生效。 */

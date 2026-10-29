@@ -66,4 +66,4 @@
 
 > 历史说明（CHANGELOG、本表、迁移指引）里可以出现旧词，因为那是在讲「以前叫什么」。
 
-> 相关：[体验审计](EXPERIENCE-AUDIT.md) · [故障模式](FAILURE-MODES.md) · [逻辑与界面缺陷](LOGIC-UI-ISSUES.md)
+> 相关：[体验审计](experience-audit.md) · [故障模式](failure-modes.md) · [逻辑与界面缺陷](logic-ui-issues.md)

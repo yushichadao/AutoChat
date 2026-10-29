@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { normalizeMessage, dedupeKey, extractAtUsers, stripSenderPrefix } from '../src/protocol/normalize.js';
 
 test('平铺结构可归一化', () => {
@@ -79,4 +82,33 @@ test('群消息正文里的 wxid 前缀会被剥掉', () => {
   assert.equal(stripSenderPrefix('这里提到 wxid_abc123:xxx 但不是开头'), '这里提到 wxid_abc123:xxx 但不是开头');
   const msg = normalizeMessage({ wxid: 'wxid_g', roomid: '1@chatroom', content: 'wxid_abc123:\n在吗' });
   assert.equal(msg.text, '在吗');
+});
+
+test('appmsg 文件消息解析并定位本机路径', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ac-norm-'));
+  fs.writeFileSync(path.join(dir, 'report.pdf'), 'hello');
+  const xml =
+    '<msg><appmsg appid="wx"><type>6</type><title>report.pdf</title>' +
+    '<appattach><totallen>1234</totallen><fileext>pdf</fileext></appattach></appmsg></msg>';
+  const msg = normalizeMessage(
+    { wxid: 'wxid_sender', type: 49, content: xml, createTime: 1700000000 },
+    { selfId: 'wxid_h', fileStorageBase: dir }
+  );
+  assert.equal(msg.kind, 'xml');
+  assert.ok(msg.files.some((f) => f.endsWith('report.pdf')), '文件应被定位到本机路径');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('appmsg 文件找不到本机路径时退化为文本提示', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ac-norm2-'));
+  const xml =
+    '<msg><appmsg appid="wx"><type>6</type><title>missing.pdf</title>' +
+    '<appattach><totallen>9999</totallen><fileext>pdf</fileext></appattach></appmsg></msg>';
+  const msg = normalizeMessage(
+    { wxid: 'wxid_sender2', type: 49, content: xml, createTime: 1700000000 },
+    { selfId: 'wxid_h', fileStorageBase: dir }
+  );
+  assert.equal(msg.files.length, 0, '路径不存在不应塞入文件');
+  assert.ok(msg.text.includes('收到文件附件：missing.pdf'), '应在文本里提示收到文件');
+  fs.rmSync(dir, { recursive: true, force: true });
 });

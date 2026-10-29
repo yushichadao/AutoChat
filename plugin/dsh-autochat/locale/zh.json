@@ -1,0 +1,6 @@
+{
+  "plugin": {
+    "name": "AutoChat",
+    "description": "Windows 微信侧 AI 助手的控制台：体检、启停、暂停回复、按会话配置、匹配 hook DLL。"
+  }
+}

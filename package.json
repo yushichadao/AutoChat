@@ -16,7 +16,9 @@
     "llm",
     "automation",
     "openai-compatible",
-    "wechat-hook"
+    "wechat-hook",
+    "dsh-plugin",
+    "deepseek-harness"
   ],
   "repository": {
     "type": "git",
@@ -42,23 +44,27 @@
     "version": "node src/cli/index.js version",
     "model": "node src/cli/index.js model",
     "model-service": "node src/cli/index.js model service",
-    "install": "node src/cli/index.js install",
-    "uninstall": "node src/cli/index.js uninstall",
+    "install-service": "node src/cli/index.js install",
+    "uninstall-service": "node src/cli/index.js uninstall",
     "pause": "node src/cli/index.js pause",
     "resume": "node src/cli/index.js resume",
     "stop": "node src/cli/index.js stop",
-    "dist": "pwsh -ExecutionPolicy Bypass -File tools/build-portable.ps1"
+    "dist": "pwsh -ExecutionPolicy Bypass -File tools/build-portable.ps1",
+    "mcp": "node src/mcp/server.js"
   },
+  "prepublishOnly": "node --test test/*.test.js",
   "bin": {
     "autochat": "src/cli/index.js"
   },
   "dependencies": {},
   "files": [
     "src/",
+    "plugin/dsh-autochat/",
     "tools/*.js",
     "tools/*.bat",
     "test/",
     "docs/*.md",
+    ".mcp.json",
     ".env.example",
     "config.example.json",
     "README.md",

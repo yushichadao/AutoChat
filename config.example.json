@@ -11,7 +11,8 @@
       "model": "gpt-4o-mini",
       "baseUrl": "https://api.openai.com/v1",
       "systemPrompt": "你是我的私人助理。",
-      "triggerPrefix": "@小助手 "
+      "triggerPrefix": "@小助手 ",
+      "reasoningEffort": "high"
     }
   }
 }

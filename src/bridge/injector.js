@@ -2,13 +2,14 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { decodeCliText } from '../core/text.js';
 
 /**
  * 把 hook DLL 映射进目标进程（Weixin.exe）。
  *
  * 用 Windows 自带的 CreateRemoteThread + LoadLibraryW，不额外依赖原生模块；
  * 也提供 proxy 模式：把 DLL 复制成 version.dll 放进微信目录，由系统加载器载入。
- * 卸载用 `npm run uninstall` 还原 version.dll。
+ * 卸载用 `npm run uninstall-service` 还原 version.dll。
  */
 const CS_SOURCE = `
 using System;
@@ -103,7 +104,13 @@ function ps(script, timeout = 60000) {
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
       { windowsHide: true, timeout, maxBuffer: 4 * 1024 * 1024 },
-      (err, stdout, stderr) => resolve({ ok: !err, out: String(stdout || '').trim(), err: String(stderr || '').trim() })
+      (err, stdout, stderr) =>
+        resolve({
+          ok: !err,
+          // 子进程按系统代码页输出中文，必须按代码页解码，否则是乱码（且不可逆）
+          out: decodeCliText(stdout).trim(),
+          err: decodeCliText(stderr).trim(),
+        })
     );
   });
 }
@@ -150,9 +157,24 @@ export async function deployProxyDll(installDir, dllPath, backup = true) {
   if (!fs.existsSync(dllPath)) throw new Error(`DLL 不存在: ${dllPath}`);
 
   if (backup && fs.existsSync(target) && !fs.existsSync(`${target}.bak`)) {
-    fs.copyFileSync(target, `${target}.bak`);
+    try {
+      fs.copyFileSync(target, `${target}.bak`);
+    } catch {
+      /* 被占用就跳过备份，下面还有改名兜底 */
+    }
   }
-  fs.copyFileSync(dllPath, target);
+  try {
+    fs.copyFileSync(dllPath, target);
+  } catch (err) {
+    // 微信正在运行：已加载的 version.dll 会被锁（EBUSY/EPERM），直接覆盖会失败。
+    // Windows 允许给已加载的 DLL 改名，先挪走再写新的，重启微信即生效。
+    if (err && (err.code === 'EBUSY' || err.code === 'EPERM' || err.code === 'EACCES')) {
+      fs.renameSync(target, `${target}.old-${Date.now()}`);
+      fs.copyFileSync(dllPath, target);
+      return target;
+    }
+    throw err;
+  }
   return target;
 }
 

@@ -29,6 +29,7 @@ export async function run(ctx) {
     const r = await startBackground(ROOT);
     line(r.ok ? 'ok' : 'bad', r.ok ? '已后台启动' : '启动失败', r.message);
     if (r.ok) hint('日志：autochat logs（data/autochat.out）');
+    else process.exitCode = 1; // 启动失败给非零退出码，便于脚本判断（I11）
     return;
   }
 

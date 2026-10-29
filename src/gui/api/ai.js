@@ -28,6 +28,9 @@ export const routes = {
       apiKey: b.key || '',
       model: b.model,
       timeoutMs: Number(b.timeoutMs) || 20000,
+      reasoningEffort: b.reasoningEffort || 'off',
+      reasoningFormat: b.reasoningFormat || 'standard',
+      reasoningBudget: Number(b.reasoningBudget) || 0,
     });
     return { status: 200, body: r };
   },

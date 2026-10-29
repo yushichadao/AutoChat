@@ -24,7 +24,7 @@ export const TEXT_PATHS = ['/SendTextMsg', '/send_text', '/api/sendText', '/Send
 
 /** 图片/文件的路径候选。 */
 export const IMAGE_PATHS = ['/SendImgMsg', '/send_image', '/api/sendImage', '/SendImageMsg'];
-export const FILE_PATHS = ['/SendFileMsg', '/send_file', '/api/sendFile', '/SendFileMsg'];
+export const FILE_PATHS = ['/send_file', '/api/sendFile'];
 
 export function dialectByName(name) {
   return TEXT_DIALECTS.find((d) => d.name === name) || null;
