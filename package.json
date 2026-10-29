@@ -33,6 +33,7 @@
   },
   "scripts": {
     "start": "node src/cli/index.js start",
+    "start:bg": "node src/cli/index.js start --background",
     "dev": "node --watch src/cli/index.js start",
     "test": "node --test test/*.test.js",
     "demo": "node tools/demo.js",

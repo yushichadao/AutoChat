@@ -26,7 +26,7 @@ import * as persona from './persona.js';
  * enabled / groupReply / triggerPrefix / personaFile，只在那个会话生效。
  */
 export class AIReply {
-  constructor({ cfg, ai, memory, hook, logger, selfWxid = '', selfName = '', profiles = null, selfFilter = null, pauseState = null }) {
+  constructor({ cfg, ai, memory, hook, logger, selfWxid = '', selfName = '', profiles = null, selfFilter = null, pauseState = null, summaryFile = '' }) {
     this.cfg = cfg;
     this.ai = ai;
     this.memory = memory;
@@ -71,7 +71,7 @@ export class AIReply {
     this.inflight = new Map();
     /** 长期记忆摘要（MS2/3/4/7）：持久库，独立于易失的 context；默认抽取式、离线可用。 */
     this.memorySummary = new MemorySummary({
-      file: this.dataDir ? path.join(this.dataDir, 'ai-memory-summary.json') : '',
+      file: summaryFile || (this.dataDir ? path.join(this.dataDir, 'ai-memory-summary.json') : ''),
       logger,
       interval: cfg.summaryInterval || 8,
     });

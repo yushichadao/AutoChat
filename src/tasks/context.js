@@ -1,20 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadConfig } from '../core/config.js';
+import { accountMemoryFile } from '../core/account-profile.js';
 import { ROOT } from '../core/paths.js';
 
 /**
  * 上下文记忆读取与清空（任务层）。
- * 只管 data/ai-memory.json；写入与裁剪策略在 src/ai/memory.js。
+ * 按当前登录账号隔离：给定 wxid 时读写 data/accounts/<wxid>/memory.json，否则退回旧全局 data/ai-memory.json。
+ * 写入与裁剪策略在 src/ai/memory.js。
  */
 
-export function memoryFile(rootDir = ROOT) {
-  return path.join(loadConfig({ rootDir }).dataDir, 'ai-memory.json');
+export function memoryFile(rootDir = ROOT, wxid) {
+  const dataDir = process.env.WX_DATA_DIR ? path.resolve(process.env.WX_DATA_DIR) : path.join(rootDir, 'data');
+  return wxid ? accountMemoryFile(dataDir, wxid) : path.join(dataDir, 'ai-memory.json');
 }
 
 /** 读取全部会话的上下文概览。 */
-export function readContext(rootDir = ROOT) {
-  const file = memoryFile(rootDir);
+export function readContext(rootDir = ROOT, wxid) {
+  const file = memoryFile(rootDir, wxid);
   if (!fs.existsSync(file)) return { file, sessions: [], count: 0, exists: false };
   let bag = {};
   try {
@@ -38,8 +40,8 @@ export function readContext(rootDir = ROOT) {
 }
 
 /** 清空上下文记忆（不传 chatId 即清空全部）。 */
-export function clearContext(chatId = '', rootDir = ROOT) {
-  const file = memoryFile(rootDir);
+export function clearContext(chatId = '', rootDir = ROOT, wxid) {
+  const file = memoryFile(rootDir, wxid);
   let raw = { __v: 1, sessions: {} };
   if (fs.existsSync(file)) {
     try {

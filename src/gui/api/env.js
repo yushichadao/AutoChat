@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readEditableEnv, writeEditableEnv } from '../../tasks/config.js';
+import { currentAccountWxid } from '../state.js';
 import { PauseState } from '../../core/pause.js';
 import { loadConfig } from '../../core/config.js';
 import { loadPersona, DEFAULT_PERSONA } from '../../ai/persona.js';
@@ -11,12 +12,12 @@ import { loadPersona, DEFAULT_PERSONA } from '../../ai/persona.js';
 export const routes = {
   'POST /api/env': async ({ rootDir, body }) => {
     const b = await body();
-    const r = writeEditableEnv(b.values || {}, rootDir);
+    const r = writeEditableEnv(b.values || {}, rootDir, currentAccountWxid());
     const { buildState } = await import('../state.js');
     return { status: 200, body: { ok: true, changed: r.changed, state: await buildState(rootDir) } };
   },
 
-  'GET /api/env': async ({ rootDir }) => ({ status: 200, body: readEditableEnv(rootDir) }),
+  'GET /api/env': async ({ rootDir }) => ({ status: 200, body: readEditableEnv(rootDir, currentAccountWxid()) }),
 
   /**
    * 把「当前人设」（没配就是内置默认）落成一份本地文件，

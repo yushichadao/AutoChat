@@ -5,6 +5,8 @@ import { section, line, json, hint } from '../ui.js';
 import { loadConfig } from '../../core/config.js';
 import { serviceStatus } from '../../tasks/service.js';
 import { readContext } from '../../tasks/context.js';
+import { listChats } from '../../tasks/chats.js';
+import { probeAccount } from '../../tasks/doctor.js';
 import { PauseState } from '../../core/pause.js';
 
 /**
@@ -13,10 +15,11 @@ import { PauseState } from '../../core/pause.js';
  */
 export async function run(ctx) {
   const cfg = loadConfig({ rootDir: ROOT });
+  const wxid = (await probeAccount(ROOT).catch(() => null))?.wxid || '';
   const svc = await serviceStatus(ROOT);
   const pause = new PauseState({ file: `${cfg.dataDir}/paused` });
   const paused = pause.isPaused();
-  const ctxInfo = readContext(ROOT);
+  const ctxInfo = readContext(ROOT, wxid);
   const rateLimit = readRateLimitStats(cfg.dataDir);
 
   const state = {
@@ -28,7 +31,7 @@ export async function run(ctx) {
     baseUrl: cfg.ai.baseUrl,
     selfMode: cfg.wechat.selfMode,
     listenChats: cfg.wechat.pollChats,
-    chats: Object.keys(cfg.chats || {}),
+    chats: Object.keys(listChats(ROOT, wxid) || {}),
     contextTurns: cfg.ai.contextTurns,
     contextSessions: ctxInfo.count,
     rateLimit,
@@ -56,7 +59,7 @@ export async function run(ctx) {
   line('ok', '模型', cfg.ai.model + ' @ ' + (cfg.ai.baseUrl ? cfg.ai.baseUrl : '(未配置)'));
   line('ok', '自消息判定', cfg.wechat.selfMode);
   line('ok', '监听会话', cfg.wechat.pollChats.join(', ') ? cfg.wechat.pollChats.join(', ') : '(未配置)');
-  line('ok', '按会话配置', Object.keys(cfg.chats || {}).join(', ') ? Object.keys(cfg.chats).join(', ') : '(无)');
+  line('ok', '按会话配置', Object.keys(listChats(ROOT, wxid) || {}).join(', ') ? Object.keys(listChats(ROOT, wxid)).join(', ') : '(无)');
   line('ok', '上下文记忆', cfg.ai.contextTurns + ' 轮 / ' + cfg.ai.contextMaxChars + ' 字符预算 / ' + ctxInfo.count + ' 个会话');
   // 能力开关：与 GUI「高级项」对齐，CLI 侧也要能核对灰度状态
   const on = (v) => (v ? '开' : '关');

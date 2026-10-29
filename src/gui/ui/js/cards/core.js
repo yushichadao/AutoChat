@@ -41,11 +41,31 @@
       action: paused ? 'resume' : 'pause',
     }));
 
+    const acct = state.account || {};
+    const accInfo = state.accountsInfo || {};
+    const known = Array.isArray(accInfo.known) ? accInfo.known : [];
+    const acctChips = known
+      .map((id) => '<button type="button" class="chip" data-act="account-pick" data-wxid="' + W.esc(id) + '">' + W.esc(id) + '</button>')
+      .join('');
+    // 「当前账号」控件：显示现在认的是哪个号，并提供手动覆盖（探测偶发拿不到 wxid 时用来兜底）。
+    // 所有记忆 / 群 / 模型配置都按这个号隔离，避免换号后旧会话漏给新号。
+    const acctInfo =
+      '<div class="actrow"><span class="swtext"><b>当前账号（记忆 / 群 / 模型配置均按此隔离）</b><span>' +
+      W.esc(acct.wxid || '（未检测到）') + (acct.nickname ? ' · ' + W.esc(acct.nickname) : '') + ' · 来源 ' + W.esc(acct.source || '-') +
+      '</span></span><span class="tag ' + (acct.wxid ? 'rec' : 'warn') + '">' + (acct.wxid ? '已识别' : '未识别') + '</span></div>' +
+      '<div class="row fieldrow">' +
+      W.field('手动指定当前账号 wxid（覆盖自动探测；留空＝自动）', acct.wxid || '', 'acctWxid', 'text', 'wxid_xxxx') +
+      '<button type="button" class="btn" data-act="account-set">设为当前账号</button>' +
+      '<button type="button" class="btn ghost" data-act="account-clear">自动探测</button>' +
+      '</div>' +
+      (acctChips ? '<div class="chiprow" style="margin-top:6px">已知账号：' + acctChips + '</div>' : '');
+
     const tip = !state.running
       ? '先启动助手服务，再验证一条消息有没有回。'
       : (paused ? '现在是暂停态，恢复后才会回消息。' : '都就绪了，去「按会话配置」确认要参与的群。');
 
     return W.card('状态与自动回复',
+      acctInfo +
       '<div class="status-grid">' +
       '<div class="status-item ' + (state.running ? 'ok' : 'bad') + '"><b>助手服务</b><span>' +
       (state.running ? '运行中' : '未运行') + '</span></div>' +

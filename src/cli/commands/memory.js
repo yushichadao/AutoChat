@@ -1,9 +1,10 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { ROOT } from '../../core/paths.js';
 import { loadConfig } from '../../core/config.js';
 import { section, line, json, hint } from '../ui.js';
 import { readContext } from '../../tasks/context.js';
+import { accountSummaryFile } from '../../core/account-profile.js';
+import { probeAccount } from '../../tasks/doctor.js';
 import { MemorySummary, extractiveSummary } from '../../ai/memory-summary.js';
 import { AIClient } from '../../ai/client.js';
 
@@ -11,9 +12,9 @@ import { AIClient } from '../../ai/client.js';
  * autochat memory —— 长期记忆摘要：查看 / 生成 / 导出 / 清空。
  * 与 `autochat context`（易失转录）不同，这里是持久的结构化摘要，可跨会话留存、可导出。
  */
-function summaryStore(rootDir = ROOT) {
+function summaryStore(rootDir = ROOT, wxid) {
   const dataDir = loadConfig({ rootDir }).dataDir;
-  return new MemorySummary({ file: path.join(dataDir, 'ai-memory-summary.json'), logger: { debug() {}, warn() {} } });
+  return new MemorySummary({ file: accountSummaryFile(dataDir, wxid), logger: { debug() {}, warn() {} } });
 }
 
 /** 用当前配置的模型构建一个 AIClient（仅 --rebuild 用）。 */
@@ -34,7 +35,9 @@ function buildAI(rootDir = ROOT) {
 export async function run(ctx) {
   const sub = (ctx.positional[0] || 'list').toLowerCase();
   const chatId = ctx.positional[1] || ctx.opt('chat');
-  const store = summaryStore(ROOT);
+  const acct = await probeAccount(ROOT).catch(() => null);
+  const wxid = acct?.wxid || '';
+  const store = summaryStore(ROOT, wxid);
 
   if (sub === 'export') {
     const format = ctx.opt('format', 'memory');
@@ -61,7 +64,7 @@ export async function run(ctx) {
 
   if (sub === 'summarize' || sub === 'summary') {
     // 从当前上下文转录并入摘要库（MS2）。默认抽取式；--rebuild 用模型重算。
-    const ctxInfo = readContext(ROOT);
+    const ctxInfo = readContext(ROOT, wxid);
     if (!ctxInfo.exists || !ctxInfo.sessions.length) {
       line('warn', '还没有任何上下文转录，先用一会儿再来。');
       return;
@@ -72,7 +75,7 @@ export async function run(ctx) {
     for (const s of ctxInfo.sessions) {
       if (chatId && s.chatId !== chatId) continue;
       const transcript = s.last.length
-        ? readTranscript(ROOT, s.chatId)
+        ? readTranscript(ROOT, s.chatId, wxid)
         : [];
       if (!transcript.length) continue;
       await store.ingest(s.chatId, transcript, { ai });
@@ -105,8 +108,8 @@ export async function run(ctx) {
 }
 
 /** 读某会话的完整转录（供 --rebuild 重算）。 */
-function readTranscript(rootDir, chatId) {
-  const info = readContext(rootDir);
+function readTranscript(rootDir, chatId, wxid) {
+  const info = readContext(rootDir, wxid);
   try {
     const raw = JSON.parse(fs.readFileSync(info.file, 'utf8'));
     const bag = raw.sessions || {};

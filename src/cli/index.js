@@ -33,7 +33,7 @@ const ctx = {
 
 const COMMANDS = [
   'status', 'doctor', 'setup', 'install', 'uninstall', 'start', 'stop', 'pause', 'resume',
-  'logs', 'context', 'memory', 'chats', 'config', 'lock', 'autodll', 'self', 'model', 'effort', 'persona', 'version', 'gui',
+  'logs', 'context', 'memory', 'chats', 'config', 'lock', 'autodll', 'self', 'model', 'effort', 'persona', 'version', 'gui', 'account',
 ];
 
 function printHelp() {

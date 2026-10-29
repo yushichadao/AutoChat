@@ -1,7 +1,7 @@
 import { ROOT } from '../../core/paths.js';
 import { section, line, json, hint } from '../ui.js';
 import { listChats, saveChats, setChatEnabled, removeChat, upsertChat } from '../../tasks/chats.js';
-import { checkChatAvailability } from '../../tasks/doctor.js';
+import { checkChatAvailability, probeAccount } from '../../tasks/doctor.js';
 
 /**
  * autochat chats —— 按会话配置（群 / 好友级差异）。
@@ -10,10 +10,11 @@ import { checkChatAvailability } from '../../tasks/doctor.js';
 export async function run(ctx) {
   const sub = (ctx.positional[0] || 'list').toLowerCase();
   const id = ctx.positional[1];
-  const chats = listChats(ROOT);
+  const wxid = (await probeAccount(ROOT).catch(() => null))?.wxid || '';
+  const chats = listChats(ROOT, wxid);
 
   if (sub === 'check') {
-    const result = await checkChatAvailability({ rootDir: ROOT });
+    const result = await checkChatAvailability({ rootDir: ROOT, wxid });
     const items = result.items || [];
     if (ctx.flag('json')) {
       json({ ok: result.ok, items });
@@ -72,13 +73,13 @@ export async function run(ctx) {
   }
 
   if (sub === 'add') {
-    upsertChat(id, { enabled: true }, ROOT);
+    upsertChat(id, { enabled: true }, ROOT, wxid);
     line('ok', '已加入', id);
   } else if (sub === 'rm') {
-    removeChat(id, ROOT);
+    removeChat(id, ROOT, wxid);
     line('ok', '已移除', id);
   } else if (sub === 'enable' || sub === 'disable') {
-    setChatEnabled(id, sub === 'enable', ROOT);
+    setChatEnabled(id, sub === 'enable', ROOT, wxid);
     line('ok', sub === 'enable' ? '已启用' : '已停用', id);
   } else if (sub === 'set') {
     const patch = {};
@@ -87,7 +88,7 @@ export async function run(ctx) {
       if (eq <= 0) continue;
       patch[pair.slice(0, eq)] = pair.slice(eq + 1);
     }
-    upsertChat(id, patch, ROOT);
+    upsertChat(id, patch, ROOT, wxid);
     line('ok', '已更新', id + ' ' + JSON.stringify(patch));
   } else {
     line('bad', '未知子命令', sub);

@@ -24,8 +24,10 @@ const MARKERS = [
   // 旧版自研 DLL（文件含 "PRAGMA database_list"）
   { str: 'PRAGMA database_list', rva: 0x58ed0, cands: [0x6d480, 0x736a0, 0x73668] },
   // version-ac-4.1.10.27.dll（当前 4.1.10.27 内置 DLL，无 PRAGMA database_list）：
-  // 用唯一字符串 "get database handle which named %s failed" 定位，g_IsLogin@0x1f22f0
-  { str: 'get database handle which named %s failed', rva: 0x1a8460, cands: [0x1f22f0] },
+  // 用唯一字符串 "get database handle which named %s failed" 定位，g_IsLogin@0x1f32f0
+  // 注：RVA 由 PE 节表核算（文件偏移 0x1a7870 → RVA 0x1a9470；g_IsLogin 在 0x1f32f0），
+  // 早期硬编码值偏低 0x1010 会导致反推基址错位、MZ 校验失败而报 no-self-dll。
+  { str: 'get database handle which named %s failed', rva: 0x1a9470, cands: [0x1f32f0] },
 ];
 
 function buildCsSource() {
@@ -70,6 +72,18 @@ public static class GisLoginPatcher
         return -1;
     }
 
+    static bool IsPeBase(IntPtr h, long baseAddr) {
+        byte[] mz = new byte[2]; UIntPtr r1;
+        if (!ReadProcessMemory(h, (IntPtr)baseAddr, mz, 2, out r1) || mz[0] != (byte)'M' || mz[1] != (byte)'Z') return false;
+        byte[] elf = new byte[4]; UIntPtr r2;
+        if (!ReadProcessMemory(h, (IntPtr)(baseAddr + 0x3c), elf, 4, out r2)) return false;
+        int e_lfanew = BitConverter.ToInt32(elf, 0);
+        if (e_lfanew < 0 || e_lfanew > 0x1000) return false;
+        byte[] sig = new byte[4]; UIntPtr r3;
+        if (!ReadProcessMemory(h, (IntPtr)(baseAddr + e_lfanew), sig, 4, out r3)) return false;
+        return sig[0] == (byte)'P' && sig[1] == (byte)'E' && sig[2] == 0 && sig[3] == 0;
+    }
+
     static long SearchBase(IntPtr h, byte[] marker, long stringRva) {
         var mbi = new MEMORY_BASIC_INFORMATION();
         long addr = 0;
@@ -90,10 +104,14 @@ public static class GisLoginPatcher
                         int idx = IndexOf(buf, 0, read, marker);
                         if (idx >= 0) {
                             long abs = regionBase + off + idx;
-                            long dllBase = abs - stringRva;
-                            byte[] mz = new byte[2]; UIntPtr r2;
-                            if (ReadProcessMemory(h, (IntPtr)dllBase, mz, 2, out r2) && mz[0] == (byte)'M' && mz[1] == (byte)'Z')
-                                return dllBase;
+                            // 先按硬编码 stringRva 反推，再校验 PE 头；
+                            // 若 RVA 因 DLL 微调而偏差，从字符串向下按页扫描真正的模块基址
+                            long cand = abs - stringRva;
+                            if (IsPeBase(h, cand)) return cand;
+                            long lim = Math.Min(abs, 0x400000);
+                            for (long back = 0; back <= lim; back += 0x1000) {
+                                if (IsPeBase(h, abs - back)) return abs - back;
+                            }
                         }
                     }
                     off += chunk; remaining -= chunk;

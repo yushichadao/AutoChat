@@ -5,7 +5,9 @@ import { ROOT } from '../core/paths.js';
 import { loadConfig } from '../core/config.js';
 import { readEnvFile } from '../core/env-file.js';
 import { safeEnv } from '../tasks/config.js';
+import { probeAccount } from '../tasks/doctor.js';
 import { readChats } from '../core/chats.js';
+import { accountMemoryFile, loadActiveAccount } from '../core/account-profile.js';
 import { PauseState, PidFile } from '../core/pause.js';
 import { installStatus } from '../tasks/install.js';
 import { detectWeChat } from '../bridge/process.js';
@@ -15,6 +17,12 @@ import { HookClient } from '../bridge/hook-client.js';
 import { ContactCache } from '../bridge/contacts.js';
 import { explainReasoning } from '../core/reasoning.js';
 import { loadPersona, buildBaseline, fillVars } from '../ai/persona.js';
+
+/** 当前登录账号 wxid 缓存，由 buildState 每次刷新时更新；API 路由据此按账号读写数据。 */
+let _accountWxid = '';
+export function currentAccountWxid() {
+  return _accountWxid;
+}
 
 /**
  * 密钥类字段给界面看的元信息：是否配置、已保存的真值、脱敏预览。
@@ -49,12 +57,21 @@ export function getHookContacts(rootDir) {
   const cfg = loadConfig({ rootDir });
   const key = cfg.wechat.host + ':' + cfg.wechat.port;
   if (_hook && _hookKey === key) return { hook: _hook, contacts: _contacts };
-  _hook = new HookClient({
+  const hook = new HookClient({
     host: cfg.wechat.host,
     port: cfg.wechat.port,
     endpoints: cfg.wechat.endpoints,
+    dbName: cfg.wechat.pollDb,
     dbQueryTimeoutMs: 3000,
   });
+  // 注入已知会话，让 detectSelfFromMessages（version-ac 新版微信反推本机 wxid 的兜底）能精准查表；
+  // 否则 GUI 这边的账号探测拿不到 wxid，只能回落 .env 旧值，换号后会一直显示错误账号（来源：配置文件）。
+  const chatIds = [...new Set([
+    ...(Array.isArray(cfg.wechat.pollChats) ? cfg.wechat.pollChats : []),
+    ...Object.keys(cfg.chats || {}),
+  ])].filter(Boolean);
+  hook.chatIds = chatIds;
+  _hook = hook;
   _contacts = new ContactCache({ hook: _hook });
   _hookKey = key;
   return { hook: _hook, contacts: _contacts };
@@ -79,37 +96,6 @@ async function probeLogin(rootDir) {
     value = null;
   }
   _loginCache = { at: Date.now(), key, value };
-  return value;
-}
-
-/**
- * 探测当前登录微信号（wxid + 昵称）。
- * 优先 hook /GetSelfProfile（实时、最准），失败再试本地库兜底；
- * 都拿不到返回 null，由上层回落 .env 的 WX_SELF_ID。
- * 15 秒缓存，避免刷新反复打 hook（与 probeLogin 同策略）。
- */
-let _accountCache = { at: 0, key: '', value: null };
-async function probeAccount(rootDir) {
-  const cfg = loadConfig({ rootDir });
-  const key = cfg.wechat.host + ':' + cfg.wechat.port;
-  if (_accountCache.key === key && Date.now() - _accountCache.at < 15000) return _accountCache.value;
-  let value = null;
-  try {
-    const { hook } = getHookContacts(rootDir);
-    const st = await hook.ping().catch(() => ({ ok: false }));
-    if (st.ok) {
-      const prof = await hook.selfProfile().catch(() => null);
-      if (prof && prof.wxid) {
-        value = { wxid: prof.wxid, nickname: prof.nickname || '', source: 'hook' };
-      } else {
-        const acc = await hook.selfAccount().catch(() => '');
-        if (acc) value = { wxid: acc, nickname: '', source: 'db' };
-      }
-    }
-  } catch {
-    value = null;
-  }
-  _accountCache = { at: Date.now(), key, value };
   return value;
 }
 
@@ -193,6 +179,15 @@ async function attachContactNames(rootDir, memory, chats, accountWxid) {
 /** 组装完整状态。 */
 export async function buildState(rootDir = ROOT) {
   const cfg = loadConfig({ rootDir });
+  // 身份三要素的真值：优先「当前实时登录账号」，hook 不可达才回落 .env 静态值。
+  // 提前到最前算，保证下方记忆 / 会话读取按当前账号隔离，且 attachContactNames 不会 TDZ。
+  const override = loadActiveAccount(cfg.dataDir);
+  const liveAccount = await probeAccount(rootDir);
+  // 手动指定的当前账号优先于 hook 自动探测；都拿不到再回落 .env 静态值。
+  const accountWxid = override.wxid || liveAccount?.wxid || cfg.wechat.selfId || '';
+  const accountName = override.nickname || liveAccount?.nickname || cfg.wechat.selfName || accountWxid;
+  const accountSource = override.wxid ? 'override' : (liveAccount?.source || (cfg.wechat.selfId ? 'env' : 'unknown'));
+  _accountWxid = accountWxid;
   const sw = new PauseState({ file: cfg.dataDir + '/paused' });
   const pid = new PidFile({ file: cfg.dataDir + '/autochat.pid' }).read();
   const inst = await installStatus({ rootDir });
@@ -200,7 +195,7 @@ export async function buildState(rootDir = ROOT) {
 
   const builtin = await detectBuiltinDll(rootDir, cfg.wechat.installDir);
   const memory = [];
-  const memFile = cfg.dataDir + '/ai-memory.json';
+  const memFile = accountMemoryFile(cfg.dataDir, accountWxid);
   if (fs.existsSync(memFile)) {
     try {
       const raw = JSON.parse(fs.readFileSync(memFile, 'utf8'));
@@ -220,17 +215,12 @@ export async function buildState(rootDir = ROOT) {
     }
   }
 
-  const chats = readChats(rootDir);
+  const chats = readChats(rootDir, accountWxid);
   for (const c of Object.values(chats)) {
     if (c && typeof c === 'object') delete c.apiKey;
   }
 
-  // 身份三要素的真值：优先「当前实时登录账号」，hook 不可达才回落 .env 静态值。
-  // 必须在 attachContactNames 之前算出，否则 TDZ 引用 accountWxid 会令 buildState 抛错、/api/state 500。
-  const liveAccount = await probeAccount(rootDir);
-  const accountWxid = liveAccount?.wxid || cfg.wechat.selfId || '';
-  const accountName = liveAccount?.nickname || cfg.wechat.selfName || accountWxid;
-  const accountSource = liveAccount?.source || (cfg.wechat.selfId ? 'env' : 'unknown');
+  // accountWxid / accountName / accountSource 已在 buildState 开头（probeAccount 之后）算出，此处沿用。
   await attachContactNames(rootDir, memory, chats, accountWxid);
 
   // 思考参数：按当前模型算好「这次到底会发什么字段」，界面直接显示

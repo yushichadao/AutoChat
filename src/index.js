@@ -3,9 +3,11 @@ import path from 'node:path';
 import process from 'node:process';
 import { loadConfig, validateConfig } from './core/config.js';
 import { envFile, jsonFile } from './core/paths.js';
+import { setEnvValues } from './core/env-file.js';
 import { effectivePollChats } from './tasks/doctor.js';
 import { createLogger } from './core/logger.js';
 import { ChatProfiles } from './core/chats.js';
+import { loadAccountConfig, accountMemoryFile, accountSummaryFile } from './core/account-profile.js';
 import { ROOT } from './core/paths.js';
 import { HookLifecycle } from './bridge/hook-lifecycle.js';
 import { HookClient } from './bridge/hook-client.js';
@@ -31,7 +33,7 @@ import { BatchAggregator } from './ai/batch-aggregator.js';
  * 没有跨平台转发，没有外部协议对接 —— 所有行为都发生在你自己的微信账号里。
  */
 async function main() {
-  const cfg = loadConfig();
+  let cfg = loadConfig();
   const log = createLogger('main', cfg.logLevel);
 
   // 单实例保护（要放在最前面）：两个助手同时跑会对着同一个群各回一遍，
@@ -161,12 +163,29 @@ async function main() {
       /* 读不到就靠 WX_SELF_ID */
     }
   }
+  // 固化：自动探测到的本机 wxid 写回 .env 的 WX_SELF_ID（仅当原本为空，绝不覆盖用户手动指定的值）。
+  // 这样「自己发的消息」判定与体检的「小号检查」无需手工填 WX_SELF_ID；
+  // 且重启 / hook 短暂不可达时也有稳定值可用 —— 即「靠自己获取并固化」。
+  if (!cfg.wechat.selfId && wxid) {
+    try {
+      const ef = envFile(ROOT);
+      if (ef && fs.existsSync(ef)) {
+        setEnvValues(ef, { WX_SELF_ID: wxid });
+        log.info(`本机 wxid 已固化到 .env（WX_SELF_ID=${wxid}）`);
+      }
+    } catch (e) {
+      log.warn('固化 WX_SELF_ID 失败（不影响运行）:', e.message);
+    }
+  }
   if (!wxid) {
     log.warn(
       '未能确认本机微信 wxid：请在 .env 设置 WX_SELF_ID=你的wxid。' +
         '否则数据库轮询会把助手自己发出的消息当成别人的提问，造成自问自答、刷屏与额度浪费'
     );
   }
+  // 按账号隔离：用当前登录账号派生「本账号配置」——记忆 / 摘要 / 会话 / AI 配置各自成档。
+  // 不读旧的全局 ai-memory.json / config.json.chats，避免不同号的数据串在一起（如大号消息漏给小号）。
+  cfg = loadAccountConfig({ rootDir: ROOT, wxid });
 
   // 监听会话 = WX_POLL_CHATS ∪ 按会话配置里启用的会话（并集，见 effectivePollChats）。
   // 正常用法就是「先跑起来，再一个一个加群」，所以这里绝不能让 .env 里的旧列表盖掉新加的群。
@@ -229,7 +248,7 @@ async function main() {
       maxTurns: cfg.ai.contextTurns,
       ttlMs: cfg.ai.contextTtlMs,
       maxChars: cfg.ai.contextMaxChars,
-      file: path.join(cfg.dataDir, 'ai-memory.json'),
+      file: accountMemoryFile(cfg.dataDir, wxid),
       logger: createLogger('ai-mem', cfg.logLevel),
     });
     const profiles = new ChatProfiles({ chats: cfg.chats, rootDir: ROOT, logger: createLogger('chat', cfg.logLevel) });
@@ -240,6 +259,7 @@ async function main() {
       cfg: { ...cfg.ai, selfMode: cfg.wechat.selfMode },
       ai,
       memory,
+      summaryFile: accountSummaryFile(cfg.dataDir, wxid),
       hook,
       logger: createLogger('ai', cfg.logLevel),
       selfWxid: wxid,
@@ -308,7 +328,7 @@ async function main() {
     if (sig === lastCfgSig || sig === '0|0') return;
     lastCfgSig = sig;
     (async () => {
-      const fresh = loadConfig();
+      const fresh = loadAccountConfig({ rootDir: ROOT, wxid });
       const ids = effectivePollChats(fresh);
       const res = await receiver.setPlan(
         buildPollPlan(ids, {
@@ -343,7 +363,9 @@ async function main() {
     );
     memory?.cleanup();
   }, 60000);
-  timer.unref?.();
+  // 保活柄：零会话（未配置轮询）时，事件循环里若没有任何 ref 句柄，main() 一返回进程就静默退出。
+  // 这个心跳必须 ref，保证「先空跑、再从 GUI 热加载加群」的用法能活下来。
+
 
   const shutdown = async (sig) => {
     log.info(`收到 ${sig}，正在退出`);

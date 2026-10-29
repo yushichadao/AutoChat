@@ -125,6 +125,8 @@
 
   async function refresh(force) {
     state = await api('/api/state');
+    // 当前账号信息（已知账号列表 + 实时探测 + 手动覆盖），供「当前账号」控件使用
+    state.accountsInfo = await api('/api/accounts').catch(() => null);
     if (!form.ai.base && state.config.ai.baseUrl) form.ai.base = state.config.ai.baseUrl;
     if (!form.ai.model && state.config.ai.model) form.ai.model = state.config.ai.model;
     if (form.ai.visionModel === undefined) form.ai.visionModel = state.config.ai.visionModel || '';
@@ -584,8 +586,25 @@
                 ? '已改用 ' + a.path + '\\n并写入微信目录。请完全退出微信（托盘也退出）后重新打开并登录。'
                 : (r.message || '写入失败'));
             }
-          }
-          else if (act === 'auto-repair') {
+          } else if (act === 'account-set') {
+            // 手动指定当前账号（覆盖自动探测）：填了 wxid 才生效
+            const inp = document.getElementById('acctWxid');
+            const wxid = inp ? inp.value.trim() : '';
+            if (!wxid) { alert('请输入要设为当前的 wxid'); return; }
+            await api('/api/account', { method: 'POST', body: JSON.stringify({ wxid, nickname: '' }) });
+            await refresh(true);
+          } else if (act === 'account-clear') {
+            // 清除覆盖，回落到 hook 自动探测
+            await api('/api/account', { method: 'POST', body: JSON.stringify({ wxid: '', nickname: '' }) });
+            await refresh(true);
+          } else if (act === 'account-pick') {
+            // 点已知账号芯片直接切换
+            const wxid = el.getAttribute('data-wxid');
+            if (wxid) {
+              await api('/api/account', { method: 'POST', body: JSON.stringify({ wxid, nickname: '' }) });
+              await refresh(true);
+            }
+          } else if (act === 'auto-repair') {
             if (!confirm('一键修复会：① 微信版本不对就（引导/启动）重装对应版本；② DLL 不对就部署项目匹配的并重启微信；③ 校验登录态。\n确定继续？')) return;
             try {
               const r = await api('/api/wechat/auto-repair', { method: 'POST', body: '{}' });

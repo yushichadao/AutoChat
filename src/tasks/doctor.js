@@ -1,4 +1,5 @@
 import { loadConfig } from '../core/config.js';
+import { loadAccountConfig } from '../core/account-profile.js';
 import { ROOT } from '../core/paths.js';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -12,6 +13,40 @@ import { normalizeDbRow } from '../protocol/normalize.js';
 import { checkEnvironment } from './install.js';
 import { listModels, explainError } from '../ai/probe.js';
 import { EFFORT_LEVELS, EFFORT_LABELS, REASONING_FORMATS, explainReasoning } from '../core/reasoning.js';
+
+let _accountCache = { at: 0, key: '', value: null };
+/**
+ * 探测当前登录微信号（wxid + 昵称）。优先 hook 实时接口，失败回落。
+ * CLI 与 GUI 共用此实现，避免各造一份。
+ */
+export async function probeAccount(rootDir = ROOT) {
+  const cfg = loadConfig({ rootDir });
+  const key = cfg.wechat.host + ':' + cfg.wechat.port;
+  if (_accountCache.key === key && _accountCache.value && Date.now() - _accountCache.at < 15000) return _accountCache.value;
+  let value = null;
+  try {
+    const hook = new HookClient({
+      host: cfg.wechat.host,
+      port: cfg.wechat.port,
+      endpoints: cfg.wechat.endpoints,
+      dbName: cfg.wechat.pollDb,
+    });
+    const st = await hook.ping().catch(() => ({ ok: false }));
+    if (st.ok) {
+      const prof = await hook.selfProfile().catch(() => null);
+      if (prof && prof.wxid) {
+        value = { wxid: prof.wxid, nickname: prof.nickname || '', source: 'hook' };
+      } else {
+        const acc = await hook.selfAccount().catch(() => '');
+        if (acc) value = { wxid: acc, nickname: '', source: 'db' };
+      }
+    }
+  } catch {
+    value = null;
+  }
+  _accountCache = { at: Date.now(), key, value };
+  return value;
+}
 
 /**
  * 体检：把「为什么助手不理我」拆成几个能回答的问题。
@@ -105,11 +140,12 @@ export function effectivePollChats(cfg, currentWxid) {
 
 /** 检查监听会话里的消息是不是全都来自本机账号（小号方案的判据）。 */
 export async function checkAccountSeparation({ cfg, hook, limit = 20 } = {}) {
-  const chats = effectivePollChats(cfg, cfg.wechat.selfId);
+  // 本机账号：优先 WX_SELF_ID，否则由 hook 实时探测（靠自己获取，无需手工填写）。
+  const selfId = cfg.wechat.selfId || (await probeAccount().catch(() => null))?.wxid || '';
+  const chats = effectivePollChats(cfg, selfId);
   if (!chats.length) return ok('小号检查', '还没加入任何会话，加入后会自动检查');
 
-  const selfId = cfg.wechat.selfId;
-  if (!selfId) return bad('小号检查', '未配置 WX_SELF_ID，无法判断消息来源');
+  if (!selfId) return bad('小号检查', '未配置 WX_SELF_ID 且无法从 hook 探测本机账号，无法判断消息来源');
 
   const plan = buildPollPlan(chats, { limit, dbBase: cfg.wechat.pollDb });
   const senders = new Map();
@@ -189,7 +225,11 @@ export async function checkPoll({ cfg, hook, canRecvPush } = {}) {
     out.push(
       hit
         ? ok(`会话 ${p.chatId}`, `表 ${p.table} @ ${hit.db}，取到 ${hit.count} 行`)
-        : bad(`会话 ${p.chatId}`, `找不到表 ${p.table}`)
+        : bad(
+            `会话 ${p.chatId}`,
+            `找不到表 ${p.table} —— 通常是因为「当前登录账号」还没有加入这个群，或没在微信里打开过该会话。` +
+              `微信只为本账号所在的群建消息表，所以 AutoChat 读不到它的消息；请先用当前账号把该群加进微信并打开一次，AI 回复才会生效。`
+          )
     );
   }
   return out;
@@ -348,8 +388,10 @@ export async function diagnose({ rootDir = ROOT, scope = 'infra' } = {}) {
  * 红线：输入**只**来自 effectivePollChats（WX_POLL_CHATS ∪ 已启用的 chats），
  * 绝不自动发现群 / 扫库 —— 未经本人明确授权的会话一律不监听、不读取、不回复。
  */
-export async function checkChatAvailability({ rootDir = ROOT } = {}) {
-  const cfg = loadConfig({ rootDir });
+export async function checkChatAvailability({ rootDir = ROOT, wxid } = {}) {
+  const cfg = wxid ? loadAccountConfig({ rootDir, wxid }) : loadConfig({ rootDir });
+  // 把当前登录账号作为「本机账号」基准，确保按会话配置按当前号隔离（排除旧号专属群，避免误监听）
+  if (wxid) cfg.wechat.selfId = wxid;
   const items = [];
   const hook = new HookClient({
     host: cfg.wechat.host,

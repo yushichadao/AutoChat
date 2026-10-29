@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, jsonFile } from './paths.js';
+import { ROOT } from './paths.js';
+import { loadAccountChats, saveAccountChats, dataDirOf } from './account-profile.js';
 
 /**
  * 按会话配置里允许被界面写入的字段（白名单）。
@@ -158,41 +159,20 @@ export class ChatProfiles {
 }
 
 /**
- * 读取 config.json 里的「按会话配置」。
+ * 读取「按会话配置」——严格按当前账号隔离。
+ * 给定 wxid 时读 data/accounts/<wxid>/chats.json；否则读 'unknown' 账号（通常为空）。
+ * 不再回退到旧的全局 config.json.chats，避免换号后旧会话漏给新号。
  *
  * 文件不存在或损坏时返回空对象（配置坏了不该让整个程序起不来）。
  */
-export function readChats(rootDir = ROOT) {
-  const file = jsonFile(rootDir);
-  if (!fs.existsSync(file)) return {};
-  try {
-    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return raw && typeof raw.chats === 'object' && raw.chats ? raw.chats : {};
-  } catch {
-    return {};
-  }
+export function readChats(rootDir = ROOT, wxid) {
+  return loadAccountChats(dataDirOf(rootDir), wxid);
 }
 
 /**
- * 写回 config.json 的「按会话配置」。
- *
- * 保留文件里的其它字段；先写临时文件再改名，避免写一半被读到半个 JSON。
+ * 写回「按会话配置」——严格按当前账号隔离到 data/accounts/<wxid>/chats.json。
  */
-export function writeChats(chats, rootDir = ROOT) {
-  const file = jsonFile(rootDir);
-  let raw = {};
-  if (fs.existsSync(file)) {
-    try {
-      raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-    } catch {
-      raw = {};
-    }
-  }
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) raw = {};
-  raw.chats = chats && typeof chats === 'object' ? chats : {};
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(raw, null, 2)}\n`, 'utf8');
-  fs.renameSync(tmp, file);
-  return raw.chats;
+export function writeChats(chats, rootDir = ROOT, wxid) {
+  saveAccountChats(dataDirOf(rootDir), wxid, chats);
+  return chats;
 }

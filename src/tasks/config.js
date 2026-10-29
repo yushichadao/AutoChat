@@ -1,5 +1,6 @@
 import { readEnvFile, setEnvValues } from '../core/env-file.js';
 import { envFile, ROOT } from '../core/paths.js';
+import { loadAccountAi, saveAccountAi, dataDirOf } from '../core/account-profile.js';
 
 /**
  * 配置读写任务（任务层）。
@@ -40,9 +41,14 @@ export function safeEnv(env) {
   return out;
 }
 
-/** 读取 .env（已脱敏）。 */
-export function readEditableEnv(rootDir = ROOT) {
-  return safeEnv(readEnvFile(envFile(rootDir)));
+/** 读取可编辑配置（已脱敏）。给定当前账号 wxid 时，合并本账号的 AI 配置覆盖（ai.json）。 */
+export function readEditableEnv(rootDir = ROOT, wxid) {
+  const out = safeEnv(readEnvFile(envFile(rootDir)));
+  if (wxid) {
+    const ai = loadAccountAi(dataDirOf(rootDir), wxid);
+    for (const [k, v] of Object.entries(ai || {})) out[k] = SENSITIVE_ENV.has(k) ? Boolean(v) : v;
+  }
+  return out;
 }
 
 /**
@@ -68,12 +74,28 @@ export function syncPollChats(chats, removed = [], rootDir = ROOT) {
   return next;
 }
 
-/** 批量写入 .env（只接受白名单键；值为 null 表示删除该行）。 */
-export function writeEditableEnv(values, rootDir = ROOT) {
-  const updates = {};
+/**
+ * 批量写入可编辑配置（白名单键；值为 null 表示删除该行）。
+ *
+ * 给定当前账号 wxid 时，AI_* 键落到本账号独立的 ai.json（实现「每个号一套 AI/模型配置」），
+ * 其余键（WX_* 等机器 / 微信侧配置）仍写入全局 .env。
+ */
+export function writeEditableEnv(values, rootDir = ROOT, wxid) {
+  const envUpdates = {};
+  const aiUpdates = {};
   for (const [k, v] of Object.entries(values || {})) {
     if (!EDITABLE_ENV.has(k)) continue;
-    updates[k] = v === null ? null : String(v);
+    if (wxid && k.startsWith('AI_')) aiUpdates[k] = v === null ? null : String(v);
+    else envUpdates[k] = v === null ? null : String(v);
   }
-  return setEnvValues(envFile(rootDir), updates);
+  if (Object.keys(envUpdates).length) setEnvValues(envFile(rootDir), envUpdates);
+  if (wxid && Object.keys(aiUpdates).length) {
+    const cur = loadAccountAi(dataDirOf(rootDir), wxid);
+    for (const [k, v] of Object.entries(aiUpdates)) {
+      if (v === null) delete cur[k];
+      else cur[k] = v;
+    }
+    saveAccountAi(dataDirOf(rootDir), wxid, cur);
+  }
+  return { changed: [...Object.keys(envUpdates), ...Object.keys(aiUpdates)] };
 }

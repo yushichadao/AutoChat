@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readChats, writeChats, CHAT_FIELDS } from '../../core/chats.js';
 import { syncPollChats } from '../../tasks/config.js';
-import { getHookContacts } from '../state.js';
+import { getHookContacts, currentAccountWxid } from '../state.js';
 
 /**
  * 按会话配置接口：增删改查、联系人搜索、文件上传。
@@ -10,7 +10,8 @@ import { getHookContacts } from '../state.js';
 export const routes = {
   'POST /api/chats': async ({ rootDir, body }) => {
     const b = await body();
-    const chats = readChats(rootDir);
+    const wxid = currentAccountWxid();
+    const chats = readChats(rootDir, wxid);
     for (const [id, c] of Object.entries(b.chats || {})) {
       const clean = {};
       if (c && typeof c === 'object') {
@@ -18,10 +19,12 @@ export const routes = {
       } else {
         clean.enabled = true;
       }
+      // 打上归属账号，确保「每个号一套监听群」互不串：旧号专属群不会被别的号误监听
+      clean.account = wxid;
       chats[id] = clean;
     }
     for (const id of b.remove || []) delete chats[id];
-    writeChats(chats, rootDir);
+    writeChats(chats, rootDir, wxid);
     // 加入 / 保存会话时自动同步监听列表，避免「加了会话却收不到消息」
     const pollChats = syncPollChats(chats, b.remove || [], rootDir);
     const { buildState } = await import('../state.js');
