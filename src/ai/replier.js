@@ -474,9 +474,11 @@ export class AIReply {
       // 微信不支持对已发消息做原地替换，所以这里不是原地占位，而是两条真消息。
       const noticeOn = overrides.longTaskNotice !== undefined ? overrides.longTaskNotice : this.cfg.longTaskNotice;
       // 传入 userText：生成型任务（写代码 / 长文）不依赖工具，只能从文本识别
+      let sentLongNotice = false;
       if (noticeOn && isLongTask({ hasAttachment, willSearch, toolsOn, text: userText })) {
         try {
           await this.responder.sendNotice(msg.chatId, longTaskLabel({ hasAttachment, willSearch, toolsOn, text: userText }));
+          sentLongNotice = true;
         } catch (e) {
           this.log.warn?.(`长任务提示发送失败（不影响回复）: ${e.message}`);
         }
@@ -508,7 +510,24 @@ export class AIReply {
       const docCtx = await this.buildDocContext(msg, overrides);
       if (docCtx) messages.splice(1, 0, { role: 'system', content: docCtx });
 
+      // ── 长消息（耗时 > 阈值，默认 2000ms）占位 ──
+      // 微信无法原地替换已发消息，所以先发一条独立的「等待回复中…」，正式回复随后另起一条；
+      // 短消息（在阈值内生成完）不发任何中间消息。与上方长任务提示互斥，避免连发两条占位。
+      let waitingSent = false;
+      const waitingTimer = setTimeout(async () => {
+        if (waitingSent || sentLongNotice) return;
+        waitingSent = true;
+        const tip = this.cfg.waitingReplyText || '等待回复中…';
+        try {
+          await this.responder.sendNotice(msg.chatId, tip);
+        } catch (e) {
+          this.log.warn?.(`等待提示发送失败（不影响回复）: ${e.message}`);
+        }
+      }, Number(this.cfg.waitingReplyMs) > 0 ? Number(this.cfg.waitingReplyMs) : 2000);
+      waitingTimer.unref?.();
+
       const raw = await this.runReply(messages, aiForThis, overrides);
+      if (waitingTimer) clearTimeout(waitingTimer);
       const parts = this.responder.prepare(raw);
       if (!parts.length) {
         this.stats.failed += 1;
