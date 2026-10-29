@@ -83,6 +83,14 @@ export function saveAccountAi(dataDir, wxid, ai) {
  * @param {{rootDir?:string, wxid?:string}} opts
  * @returns {object} cfg（含 cfg.chats 已替换为当前账号的 chats.json）
  */
+/**
+ * 身份类键（人设名 / 人设文件 / 系统提示）：必须严格按账号隔离，
+ * 绝不让全局 .env 里的这些值串到别的账号（否则换号后 AI 会带着「前世」身份复活）。
+ * 具体账号（wxid 非空）一律只取本账号 ai.json 里的身份键；本账号没配就回落内置默认，
+ * 绝不回落别的账号。未指定账号（legacy / unknown）沿用旧行为，仍从全局 .env 取全量。
+ */
+const IDENTITY_KEYS = ['AI_PERSONA_NAME', 'AI_PERSONA_FILE', 'AI_SYSTEM_PROMPT'];
+
 export function loadAccountConfig({ rootDir = ROOT, wxid } = {}) {
   const base = loadConfig({ rootDir });
   const dataDir = base.dataDir;
@@ -90,24 +98,30 @@ export function loadAccountConfig({ rootDir = ROOT, wxid } = {}) {
 
   const flatAccount = loadAccountAi(dataDir, wx);
 
-  let cfg = base;
-  if (flatAccount && Object.keys(flatAccount).length) {
-    const f = envFile(rootDir);
-    let fileEnv = {};
-    if (fs.existsSync(f)) {
-      try {
-        fileEnv = parseEnv(fs.readFileSync(f, 'utf8'));
-      } catch {
-        fileEnv = {};
-      }
-    }
-    // 进程环境 < .env 文件 < 本账号 ai.json（覆盖优先级最高）
-    const merged = { ...process.env, ...fileEnv, ...flatAccount };
-    cfg = loadConfig({ env: merged, rootDir });
+  // 把全局环境（进程环境 + .env 文件）里的身份键摘掉，得到「非身份」全局环境
+  const cleanProcess = { ...process.env };
+  const f = envFile(rootDir);
+  let fileEnv = {};
+  if (fs.existsSync(f)) {
+    try { fileEnv = parseEnv(fs.readFileSync(f, 'utf8')); } catch { fileEnv = {}; }
+  }
+  for (const k of IDENTITY_KEYS) { delete cleanProcess[k]; delete fileEnv[k]; }
+
+  if (wx) {
+    // 具体账号：身份键只来自本账号 ai.json；其余 AI_* 仍允许叠加全局默认值。
+    // 进程环境(non-identity) < .env 文件(non-identity) < 本账号 ai.json
+    const merged = { ...cleanProcess, ...fileEnv, ...flatAccount };
+    const cfg = loadConfig({ env: merged, rootDir });
+    cfg.chats = loadAccountChats(dataDir, wx);
+    return cfg;
   }
 
-  // 会话配置始终以本账号 chats.json 为准；未指定账号落到 'unknown'（通常为空），
-  // 绝不回退旧的全局 config.json.chats —— 否则换号后旧会话会漏给新号。
+  // 未指定账号（legacy/unknown）：保持旧行为（含身份键），并允许 ai.json 叠加
+  let cfg = base;
+  if (flatAccount && Object.keys(flatAccount).length) {
+    const merged = { ...cleanProcess, ...fileEnv, ...flatAccount };
+    cfg = loadConfig({ env: merged, rootDir });
+  }
   cfg.chats = loadAccountChats(dataDir, wx);
   return cfg;
 }
