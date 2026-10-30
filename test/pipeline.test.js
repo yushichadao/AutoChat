@@ -141,6 +141,19 @@ test('isIdentityProbe 判定身份追问', async () => {
   assert.equal(isIdentityProbe('发张照片看看'), false);
   assert.equal(isIdentityProbe('帮我把这个本地文件读一下'), false); // 「本地」单用不算追问
   assert.equal(isIdentityProbe(''), false);
+  // 真实对话里漏判会导致 bot 把规则里的 <模型名>/【账号名】 示例原样念出来（见 issue）
+  assert.ok(isIdentityProbe('你的真实身份'));
+  assert.ok(isIdentityProbe('@人工智障 你的真实身份'));
+  assert.ok(isIdentityProbe('你是哪一个账号名？哪一个模型？还是什么？'));
+  assert.ok(isIdentityProbe('你知道你自己的账号是什么吗'));
+  assert.ok(isIdentityProbe('哪一个模型'));
+  assert.ok(isIdentityProbe('你的账号'));
+  assert.ok(isIdentityProbe('哪个账号'));
+  assert.ok(isIdentityProbe('账号是什么'));
+  assert.ok(isIdentityProbe('你的模型叫什么'));
+  // 普通聊天里带「账号 / 本地」但不追问身份，仍不被误判
+  assert.equal(isIdentityProbe('我忘记账号密码了'), false);
+  assert.equal(isIdentityProbe('这个本地文件在哪'), false);
 });
 
 test('deployKind 按接口地址判定本地部署 / 云端 API', async () => {

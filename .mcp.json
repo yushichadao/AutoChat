@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "autochat": {
+      "command": "node",
+      "args": ["${CODEBUDDY_PLUGIN_ROOT}/src/mcp/server.js"],
+      "env": {}
+    }
+  }
+}

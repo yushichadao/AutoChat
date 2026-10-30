@@ -245,6 +245,50 @@ export async function killProcess(pid, { force = true, timeoutMs = 5000 } = {}) 
   return { ok: false, message: err || (out === '0' ? `进程 ${pid} 在 ${timeoutMs}ms 内没有退出` : out) || '进程仍在' };
 }
 
+/**
+ * 按命令行标记列出本机进程（用于「一键全关」时连带关掉配置器 GUI 等）。
+ *
+ * 为什么需要它：配置器 GUI 没有 pid 文件（启动入口多样：
+ * `node src/cli/index.js gui`、`node src/gui/server.js`），只能靠命令行命中。
+ * 返回 [{ pid, cmd }]，cmd 已转小写，便于调用方自行过滤（比如排除当前进程）。
+ *
+ * @param {string[]} markers 命令行（小写）包含其中任一即命中
+ */
+export async function findProcessIds(markers) {
+  const norm = (markers || [])
+    .map((m) => String(m).toLowerCase().replace(/\\/g, '/'))
+    .filter(Boolean);
+  if (!norm.length) return [];
+  try {
+    const { out } = await ps(
+      'Get-CimInstance Win32_Process | Select-Object ProcessId, CommandLine | ' +
+        'ForEach-Object { if ($_.CommandLine) { ($_.ProcessId.ToString() + " " + $_.CommandLine) } }'
+    );
+    const lines = String(out || '').split(/\r?\n/);
+    const seen = new Set();
+    const result = [];
+    for (const ln of lines) {
+      const sp = ln.indexOf(' ');
+      if (sp < 0) continue;
+      const pid = Number(ln.slice(0, sp));
+      // 命令行里的路径是反斜杠，统一转成斜杠再比，避免 Windows 路径分隔符对不上
+      const cmd = ln
+        .slice(sp + 1)
+        .toLowerCase()
+        .replace(/\\/g, '/');
+      if (!Number.isFinite(pid) || pid <= 0) continue;
+      if (seen.has(pid)) continue;
+      if (norm.some((m) => cmd.includes(m))) {
+        seen.add(pid);
+        result.push({ pid, cmd });
+      }
+    }
+    return result;
+  } catch {
+    return [];
+  }
+}
+
 export async function isElevated() {
   const { out } = await ps(
     '$id=[Security.Principal.WindowsIdentity]::GetCurrent();' +

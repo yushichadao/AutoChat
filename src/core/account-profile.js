@@ -89,7 +89,15 @@ export function saveAccountAi(dataDir, wxid, ai) {
  * 具体账号（wxid 非空）一律只取本账号 ai.json 里的身份键；本账号没配就回落内置默认，
  * 绝不回落别的账号。未指定账号（legacy / unknown）沿用旧行为，仍从全局 .env 取全量。
  */
-const IDENTITY_KEYS = ['AI_PERSONA_NAME', 'AI_PERSONA_FILE', 'AI_SYSTEM_PROMPT'];
+/**
+ * 身份类键（人设名 / 人设文件 / 系统提示）：必须严格按账号隔离，
+ * 绝不让全局 .env 里的这些值串到别的账号（否则换号后 AI 会带着「前世」身份复活）。
+ *
+ * 重要：只有这三个键按账号隔离落到 ai.json。其余 AI_*（模型 / 接口地址 / 密钥 /
+ * 限流等）一律来自全局 .env，不在 ai.json 里承载——否则某个账号的旧 ai.json 会静默
+ * 盖掉全局模型，造成「在 GUI/`.env` 里改了模型却不生效」的坑（见 2026-10-30 修复）。
+ */
+export const IDENTITY_KEYS = ['AI_PERSONA_NAME', 'AI_PERSONA_FILE', 'AI_SYSTEM_PROMPT'];
 
 export function loadAccountConfig({ rootDir = ROOT, wxid } = {}) {
   const base = loadConfig({ rootDir });
@@ -107,19 +115,24 @@ export function loadAccountConfig({ rootDir = ROOT, wxid } = {}) {
   }
   for (const k of IDENTITY_KEYS) { delete cleanProcess[k]; delete fileEnv[k]; }
 
+  // 账号级 ai.json 只承载「身份类键」，其余 AI_* 一律忽略（避免旧 ai.json 静默盖掉全局模型）。
+  const accountOnly = {};
+  for (const k of IDENTITY_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(flatAccount, k)) accountOnly[k] = flatAccount[k];
+  }
+
   if (wx) {
-    // 具体账号：身份键只来自本账号 ai.json；其余 AI_* 仍允许叠加全局默认值。
-    // 进程环境(non-identity) < .env 文件(non-identity) < 本账号 ai.json
-    const merged = { ...cleanProcess, ...fileEnv, ...flatAccount };
+    // 具体账号：身份键只来自本账号 ai.json；其余 AI_* 全部来自全局 .env（单一真值）。
+    const merged = { ...cleanProcess, ...fileEnv, ...accountOnly };
     const cfg = loadConfig({ env: merged, rootDir });
     cfg.chats = loadAccountChats(dataDir, wx);
     return cfg;
   }
 
-  // 未指定账号（legacy/unknown）：保持旧行为（含身份键），并允许 ai.json 叠加
+  // 未指定账号（legacy/unknown）：身份键同样只取 ai.json，其余来自全局 .env。
   let cfg = base;
-  if (flatAccount && Object.keys(flatAccount).length) {
-    const merged = { ...cleanProcess, ...fileEnv, ...flatAccount };
+  if (Object.keys(accountOnly).length) {
+    const merged = { ...cleanProcess, ...fileEnv, ...accountOnly };
     cfg = loadConfig({ env: merged, rootDir });
   }
   cfg.chats = loadAccountChats(dataDir, wx);

@@ -1,6 +1,6 @@
 import { readEnvFile, setEnvValues } from '../core/env-file.js';
 import { envFile, ROOT } from '../core/paths.js';
-import { loadAccountAi, saveAccountAi, dataDirOf } from '../core/account-profile.js';
+import { loadAccountAi, saveAccountAi, dataDirOf, IDENTITY_KEYS } from '../core/account-profile.js';
 
 /**
  * 配置读写任务（任务层）。
@@ -77,15 +77,21 @@ export function syncPollChats(chats, removed = [], rootDir = ROOT) {
 /**
  * 批量写入可编辑配置（白名单键；值为 null 表示删除该行）。
  *
- * 给定当前账号 wxid 时，AI_* 键落到本账号独立的 ai.json（实现「每个号一套 AI/模型配置」），
- * 其余键（WX_* 等机器 / 微信侧配置）仍写入全局 .env。
+ * 写入去向分两类，确保「改模型」在所有账号下都即时生效、不被某个账号的旧 ai.json 顶掉：
+ *   - 身份类键（IDENTITY_KEYS：人设名 / 人设文件 / 系统提示）按账号隔离，落到本账号 ai.json——
+ *     这是为防「换号后 AI 带着前世身份复活」，必须严格隔离。
+ *   - 其余键（AI_* 模型/接口/密钥、WX_* 微信侧配置等）一律写入全局 .env，作为单一真值。
+ *
+ * 旧行为把全部 AI_* 都写进 ai.json，导致账号层覆盖全局模型（曾出现「全局改成 qwen、bot 仍在跑
+ * 旧 deepseek」且身份自检也报老模型）。现在只有身份键进 ai.json，从根上消除这类静默覆盖。
  */
 export function writeEditableEnv(values, rootDir = ROOT, wxid) {
   const envUpdates = {};
   const aiUpdates = {};
   for (const [k, v] of Object.entries(values || {})) {
     if (!EDITABLE_ENV.has(k)) continue;
-    if (wxid && k.startsWith('AI_')) aiUpdates[k] = v === null ? null : String(v);
+    // 身份键按账号隔离进 ai.json；其余键（含 AI_MODEL / AI_BASE_URL / AI_API_KEY 等）写全局 .env。
+    if (wxid && IDENTITY_KEYS.includes(k)) aiUpdates[k] = v === null ? null : String(v);
     else envUpdates[k] = v === null ? null : String(v);
   }
   if (Object.keys(envUpdates).length) setEnvValues(envFile(rootDir), envUpdates);

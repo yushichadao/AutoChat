@@ -4,6 +4,13 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.0.1] - 2026-10-31
+
+### 修复 / 改进
+- **服务启停（一键全关）**：`autochat stop` 现在会一并关闭「助手主进程 + 我们拉起的本地模型服务 + 配置器 GUI + 运行日志窗口」，不再只杀助手；GUI 内的 stop 在回 200 后自行退场，不会把正在回的响应掐掉。
+- **运行日志可见（不再黑屏/乱码）**：`autochat start`（后台）现在弹出一个可见的 cmd 控制台窗口，实时 tail `data/autochat.out` / `.err`；并切到 UTF-8 代码页（`chcp 65001` + `Get-Content -Encoding utf8`），中文不再乱码。关掉该窗口不会停助手。
+- **账号隔离加固**：严格按账号隔离身份（人设名 / 人设文件 / 系统提示），`receiver` / `persona` / `account-profile` / `config` 相关逻辑加固。
+
 ## [2.0.0] - 2026-10-26
 
 ### 新增

@@ -12,6 +12,9 @@ export const routes = {
 
     if (b.action === 'stop') {
       const r = await stopService(rootDir);
+      // 用户要求「stop 一键全关」：先回 200，再让本配置器进程退场（stopService 已放过当前进程）。
+      // 稍等一会儿，确保 HTTP 响应已经发出，不要把正在回的响应掐掉。
+      setTimeout(() => process.exit(0), 250).unref?.();
       return { status: 200, body: { ok: r.ok, message: r.message || '', state: await buildState(rootDir) } };
     }
 

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { normalizeMessage, normalizeDbRow, dedupeKey } from '../protocol/normalize.js';
-import { candidateDbs, buildPollSql, buildRowSql } from './poll-sql.js';
+import { candidateDbs, buildPollSql, buildRowSql, chatTable } from './poll-sql.js';
 
 /**
  * 兼容旧配置：手写 WX_POLL_SQL 里若写死 `local_type = 1`（只取文本），
@@ -56,6 +56,17 @@ export class Receiver extends EventEmitter {
     this.hook.chatIds = (pollPlan || []).map((p) => p.chatId).filter(Boolean);
     /** 会话 → 已处理到的最大消息 id（增量水位），重启后要记住，否则会重复回旧消息 */
     this.watermark = new Map();
+    /**
+     * 会话 → 该水位所属的消息分片库（message_N.db）。
+     * 微信会把会话分表轮转 / 迁移到下一个 message_N.db，且 local_id 在新库里**从 1 重新编号**，
+     * 所以水位必须和分片绑定：分片切换后旧水位作废（否则新消息全被 `id <= 水位` 误丢，助手变聋）。
+     * 2026-10-30「主=6 会话收不到新消息 + 旧消息被反复补答」即此因。
+     */
+    this.watermarkShard = new Map();
+    /** 会话 → 当前解析出的「活」分片库（按各候选库同名表的 MAX(create_time) 最新者）。 */
+    this.shardOf = new Map();
+    /** 会话 → 上次分片探测时间（探测有成本，缓存 30s）。 */
+    this.shardProbedAt = new Map();
     this.wmFile = cfg.watermarkFile || '';
     this.wmDirty = false;
     this.loadWatermark();
@@ -63,26 +74,40 @@ export class Receiver extends EventEmitter {
     this.reconcileSeen = new Set();
   }
 
-  /** 读回上次的水位（data/poll-state.json）。 */
+  /** 读回上次的水位（data/poll-state.json）。兼容旧格式 {chatId: id} 与新格式 {chatId: {db, id}}。 */
   loadWatermark() {
     if (!this.wmFile || !fs.existsSync(this.wmFile)) return;
     try {
       const raw = JSON.parse(fs.readFileSync(this.wmFile, 'utf8'));
       for (const [k, v] of Object.entries(raw || {})) {
-        const n = Number(v);
-        if (Number.isFinite(n)) this.watermark.set(k, n);
+        if (v && typeof v === 'object') {
+          const n = Number(v.id);
+          if (Number.isFinite(n)) {
+            this.watermark.set(k, n);
+            this.watermarkShard.set(k, String(v.db || 'message_0.db'));
+          }
+        } else {
+          const n = Number(v);
+          // 旧格式没有分片信息：旧水位一定出自 initWatermark 的首个候选库 message_0.db
+          if (Number.isFinite(n)) {
+            this.watermark.set(k, n);
+            this.watermarkShard.set(k, 'message_0.db');
+          }
+        }
       }
     } catch (err) {
       this.log?.debug?.(`水位读取失败，忽略: ${err.message}`);
     }
   }
 
-  /** 原子写：临时文件 + rename。 */
+  /** 原子写：临时文件 + rename。水位与所属分片一起存（分片轮转后 local_id 会重新编号）。 */
   saveWatermark() {
     if (!this.wmFile || !this.wmDirty) return;
     try {
       const obj = {};
-      for (const [k, v] of this.watermark) obj[k] = v;
+      for (const [k, v] of this.watermark) {
+        obj[k] = { db: this.watermarkShard.get(k) || 'message_0.db', id: v };
+      }
       fs.mkdirSync(path.dirname(this.wmFile), { recursive: true });
       const tmp = `${this.wmFile}.tmp`;
       fs.writeFileSync(tmp, JSON.stringify(obj));
@@ -157,7 +182,9 @@ export class Receiver extends EventEmitter {
       this.watermark.set(msg.chatId, wid);
       this.wmDirty = true;
     }
-    if (!this.remember(dedupeKey(msg))) {
+    // 去重键带上来源分片：local_id 在各 message_N.db 里独立编号，跨分片会撞号，
+    // 不区分的话分片切换后新消息会被旧 seen 记录误吞。
+    if (!this.remember((msg._srcDb ? msg._srcDb + '|' : '') + dedupeKey(msg))) {
       this.stats.dropped += 1;
       return;
     }
@@ -286,8 +313,11 @@ export class Receiver extends EventEmitter {
             rows = await this.queryInAnyDb(p.sql, p.db);
             if (!rows.length) continue;
           } else {
+            // 0) 先确定该会话的「活」分片库：微信会把分表轮转到 message_N.db 且 local_id 重新编号，
+            //    固定读 message_0 会永远停在旧快照（新消息全盲、旧消息被反复补答）。
+            const useDb = await this.shardFor(p.chatId, p.db);
             // 1) 轻量批次：只拿 local_id（hook 对「多列 + message_content + WHERE」查询会返回空）
-            const idRows = await this.queryInAnyDb(buildPollSql(p.chatId, p.limit || 30), p.db);
+            const idRows = await this.queryOneDb(buildPollSql(p.chatId, p.limit || 30), useDb);
             if (!idRows.length) continue;
             const mark = this.watermark.get(p.chatId) || 0;
             const newIds = idRows
@@ -311,16 +341,18 @@ export class Receiver extends EventEmitter {
             for (const id of newIds) {
               const rowSql = buildRowSql(p.chatId, id);
               if (!rowSql) continue;
-              const rr = await this.queryInAnyDb(rowSql, p.db);
+              const rr = await this.queryOneDb(rowSql, useDb);
               if (rr.length) {
+                rr[0]._srcDb = useDb; // 供去重键区分分片（local_id 各分片独立编号会撞号）
                 rows.push(rr[0]);
                 if (rr[0].rid != null) rids.add(String(rr[0].rid));
               }
             }
             if (!rows.length) continue;
 
-            // 3) 批量把 real_sender_id 解析成 wxid（Name2Id 单独查，避免 JOIN 触发 hook 空返回）
-            nameMap = await this.resolveSenders([...rids]);
+            // 3) 批量把 real_sender_id 解析成 wxid（Name2Id 单独查，避免 JOIN 触发 hook 空返回；
+            //    必须用消息行所在分片的 Name2Id，跨分片 rowid 映射互不通用）
+            nameMap = await this.resolveSenders([...rids], useDb);
           }
 
           const selfId = this.selfId;
@@ -339,6 +371,7 @@ export class Receiver extends EventEmitter {
             if (!manual) r.wxid = nameMap.get(String(r.rid)) || '';
             const msg = normalizeDbRow(r, { selfId, selfMode, fileStorageBase: this.cfg.wechat?.fileStorageBase || '' });
             if (!msg) continue;
+            if (r._srcDb) msg._srcDb = r._srcDb; // 去重键要区分分片（local_id 跨分片会撞号）
             const senderName = this.contacts?.nameOf(msg.senderId, this.selfId);
             if (senderName) msg.senderName = senderName;
             const chatName = this.contacts?.nameOf(msg.chatId, this.selfId);
@@ -378,6 +411,7 @@ export class Receiver extends EventEmitter {
           const max = Number(rows?.[0]?.msgid || 0);
           if (Number.isFinite(max) && max > 0) {
             this.watermark.set(p.chatId, max);
+            this.watermarkShard.set(p.chatId, db);
             this.wmDirty = true;
             this.log.info(`会话 ${p.chatId} 水位初始化为 ${max}（只处理之后的新消息）`);
             break;
@@ -388,6 +422,58 @@ export class Receiver extends EventEmitter {
       }
     }
     this.saveWatermark();
+  }
+
+  /** 单库查询：只查指定库，失败 / 空表返回 []（不做候选库回退——分片必须精确）。 */
+  async queryOneDb(sql, db) {
+    if (!sql || !db) return [];
+    try {
+      const res = await this.hook.queryDb(sql, db);
+      return Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * 解析会话分表当前所在的「活」分片库。
+   *
+   * 微信会把会话分表轮转 / 迁移到下一个 message_N.db（同名表在新库重新从 1 编号），
+   * 老库里会留下一份**停在过去的快照**。固定读第一个非空库就会永远读旧快照：
+   * 增量轮询看不见任何新消息（助手变聋），漏接补偿反复补答同一条旧消息。
+   * 判据用 MAX(create_time)：local_id 各分片独立编号，跨库没有可比性。
+   * 结果缓存 30s，避免每 1.5s 轮询都全量探测。
+   */
+  async resolveShard(chatId, baseDb) {
+    const table = chatTable(chatId);
+    const dbs = [baseDb, ...candidateDbs(baseDb).filter((d) => d !== baseDb)];
+    let best = null;
+    for (const db of dbs) {
+      const rows = await this.queryOneDb(`SELECT MAX(create_time) AS t FROM ${table}`, db);
+      const t = Number(rows?.[0]?.t || 0);
+      if (Number.isFinite(t) && t > 0 && (!best || t > best.t)) best = { db, t };
+    }
+    return best?.db || baseDb;
+  }
+
+  /** 带缓存的分片解析；分片变化时重置该会话水位（新分片 local_id 重新编号，旧水位无意义）。 */
+  async shardFor(chatId, baseDb) {
+    const now = Date.now();
+    const cached = this.shardOf.get(chatId);
+    if (cached && now - (this.shardProbedAt.get(chatId) || 0) < 30000) return cached;
+    const live = await this.resolveShard(chatId, baseDb);
+    this.shardProbedAt.set(chatId, now);
+    const prev = this.shardOf.get(chatId) ?? this.watermarkShard.get(chatId);
+    this.shardOf.set(chatId, live);
+    if (live !== prev) {
+      if (prev) {
+        this.log.info(`会话 ${chatId} 消息分片切换 ${prev} → ${live}（local_id 重新编号，水位重置）`);
+      }
+      this.watermark.set(chatId, 0);
+      this.watermarkShard.set(chatId, live);
+      this.wmDirty = true;
+    }
+    return live;
   }
 
   /**
@@ -433,13 +519,19 @@ export class Receiver extends EventEmitter {
     return [];
   }
 
-  /** 批量把 Name2Id.rowid 解析成真实 wxid（单表查询，hook 下稳定）。 */
-  async resolveSenders(rids) {
+  /**
+   * 批量把 Name2Id.rowid 解析成真实 wxid（单表查询，hook 下稳定）。
+   * @param {string[]} rids
+   * @param {string} [db] 消息行所在的分片库。Name2Id 的 rowid 各分片互不通用
+   *   （message_0 里 rid=2 可能是机器人，message_1 里 rid=1 才是），跨库解析会张冠李戴，
+   *   进而把别人的消息误判成自己发的（或反之）。带消息行时必须传行所在的分片。
+   */
+  async resolveSenders(rids, db) {
     const map = new Map();
     const clean = [...new Set(rids.filter((x) => x != null && x !== '' && x !== '0'))];
     if (!clean.length) return map;
     const sql = `SELECT rowid, user_name FROM Name2Id WHERE rowid IN (${clean.join(',')})`;
-    const rows = await this.queryInAnyDb(sql, 'message_0.db');
+    const rows = db ? await this.queryOneDb(sql, db) : await this.queryInAnyDb(sql, 'message_0.db');
     for (const r of rows) map.set(String(r.rowid), r.user_name);
     return map;
   }
@@ -474,12 +566,17 @@ export class Receiver extends EventEmitter {
       try {
         const mark = this.watermark.get(p.chatId) || 0;
         if (!mark) continue; // 还没接管过该会话，跳过
-        const idRows = await this.queryInAnyDb(buildPollSql(p.chatId, window), p.db);
+        // 与增量轮询同读一个「活」分片，避免读到旧库里停在过去的快照
+        const useDb = this.shardOf.get(p.chatId) || (await this.shardFor(p.chatId, p.db));
+        const idRows = await this.queryOneDb(buildPollSql(p.chatId, window), useDb);
         if (!idRows.length) continue;
-        // 只取已越过水位的 id（<= watermark），新消息交给正常增量路径
+        // 整个窗口都参与「已答」判定：bot 对旧消息的回复往往已越过水位
+        //（自己的消息在 normalize 层就被丢弃，不会推进水位），若按 `id <= 水位` 截断，
+        // 这些回复会被排除在扫描之外，旧消息永远「其后没有 Bot 回复」，
+        // 每次重启都被补答一遍（2026-10-30 主=6 会话 #46「你好」被连补三次即此因）。
         const ids = idRows
           .map((r) => Number(r.local_id ?? r.msgid))
-          .filter((n) => Number.isFinite(n) && n > 0 && n <= mark)
+          .filter((n) => Number.isFinite(n) && n > 0)
           .sort((a, b) => a - b);
         if (!ids.length) continue;
 
@@ -488,14 +585,15 @@ export class Receiver extends EventEmitter {
         for (const id of ids) {
           const rowSql = buildRowSql(p.chatId, id);
           if (!rowSql) continue;
-          const rr = await this.queryInAnyDb(rowSql, p.db);
+          const rr = await this.queryOneDb(rowSql, useDb);
           if (rr.length) {
+            rr[0]._srcDb = useDb;
             rows.push(rr[0]);
             if (rr[0].rid != null) rids.add(String(rr[0].rid));
           }
         }
         if (!rows.length) continue;
-        const nameMap = await this.resolveSenders([...rids]);
+        const nameMap = await this.resolveSenders([...rids], useDb);
 
         // 时间正序：维护「最近一条用户消息」，遇到 Bot 自己的消息即视为已回答
         let pending = null;
@@ -514,7 +612,11 @@ export class Receiver extends EventEmitter {
         if (pending) toAnswer.push(pending); // 最后一条用户消息之后无 Bot 回复
 
         for (const r of toAnswer) {
-          const key = `${p.chatId}:${r.msgid}`;
+          // 只补答「已越过水位」的旧消息：水位之后的新消息归增量路径独占，二者不重叠才不会双重回复。
+          const ridNum = Number(r.local_id ?? r.msgid);
+          if (!Number.isFinite(ridNum) || ridNum > mark) continue;
+          // 分片 + 会话 + 消息 id 一起做去重（local_id 跨分片会撞号）
+          const key = `${useDb}:${p.chatId}:${r.msgid}`;
           if (this.reconcileSeen.has(key)) continue; // 本次会话内已派发，避免重复
           this.reconcileSeen.add(key);
           r.roomid = p.roomid ?? p.chatId;
@@ -526,7 +628,8 @@ export class Receiver extends EventEmitter {
           const chatName = this.contacts?.nameOf(msg.chatId, this.selfId);
           if (chatName) msg.chatName = chatName;
           msg.reconcile = true; // 标记：绕过 selfFilter 的复检消息（air.handle 据此跳过 isSentId 校验）
-          if (!this.remember(dedupeKey(msg))) continue; // 兜底去重
+          if (r._srcDb) msg._srcDb = r._srcDb;
+          if (!this.remember((msg._srcDb ? msg._srcDb + '|' : '') + dedupeKey(msg))) continue; // 兜底去重
           this.log.info(`复检补答 ${p.chatId} #${r.msgid}：${String(r.content || '').slice(0, 30)}`);
           this.emit('message', msg);
         }
